@@ -19,7 +19,7 @@ class FeekbackCog(discord.Cog):
     def __init__(self, bot: discord.Bot) -> None:
         self.bot = bot
 
-    @commands.slash_command(name="feedback", description="⭐ Submit Your Feedback")
+    @commands.slash_command(name="feedback", description="Submit Your Feedback")
     async def feedback(self, ctx: discord.ApplicationContext):
         await ctx.send_modal(FeedbackModal())
 
