@@ -14,6 +14,7 @@ class Help(commands.Cog):
 
         ping = self.bot.get_application_command("ping")
         info = self.bot.get_application_command("info")
+        feedback = self.bot.get_application_command("feedback")
 
         embed.add_field(
             name=f"{ping.mention}", value="Sends Bot's Latency", inline=False
@@ -21,6 +22,11 @@ class Help(commands.Cog):
         embed.add_field(
             name=f"{info.mention}",
             value="Sends Infromation About The Bot",
+            inline=False,
+        )
+        embed.add_field(
+            name=f"{feedback.mention}",
+            value="Give Feedback About Bot And Website",
             inline=False,
         )
 
