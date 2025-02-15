@@ -7,9 +7,7 @@ scope = [
     "https://spreadsheets.google.com/feeds",
     "https://www.googleapis.com/auth/drive",
 ]
-creds = ServiceAccountCredentials.from_json_keyfile_name(
-    "utilities/credentials.json", scope
-)
+creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
 
 client = gspread.authorize(creds)
 sheet = client.open("Novatra Feedback").sheet1
@@ -21,7 +19,7 @@ class FeekbackCog(discord.Cog):
     def __init__(self, bot: discord.Bot) -> None:
         self.bot = bot
 
-    @commands.slash_command(name="feedback", description="Submit your feedback")
+    @commands.slash_command(name="feedback", description="⭐ Submit Your Feedback")
     async def feedback(self, ctx: discord.ApplicationContext):
         await ctx.send_modal(FeedbackModal())
 
@@ -46,16 +44,16 @@ class FeedbackModal(discord.ui.Modal):
         )
         self.add_item(
             discord.ui.InputText(
-                label="Did you face any issues while using the app ?",
+                label="Any issues while using the app ?",
                 style=discord.InputTextStyle.long,
-                placeholder="Write about the issues you faced",
+                placeholder="Write about the issues you faced while using the app ! ",
             )
         )
         self.add_item(
             discord.ui.InputText(
                 label="Any suggestions for improvement ?",
                 style=discord.InputTextStyle.long,
-                placeholder="Write your suggestions",
+                placeholder="Write your suggestions that we can use to improve the app !",
             )
         )
 
@@ -78,9 +76,32 @@ class FeedbackModal(discord.ui.Modal):
 
         print("-- + Feedback Submitted + ------")
 
-        await interaction.response.send_message(
-            "Thank You For Your Valuable Feedback", ephemeral=True
+        embed_user = discord.Embed(
+            title="Feedback Submitted Successfully",
+            description="Thank you for submitting your feedback !",
+            color=discord.Color.green(),
         )
+        embed_admin = discord.Embed(
+            title="New Feedback Received",
+            color=discord.Color.green(),
+        )
+
+        embed_admin.add_field(name="User", value=str(interaction.user))
+        embed_admin.add_field(name="User ID", value=f"<@{str(interaction.user.id)}")
+        embed_admin.add_field(name="Experience", value=experience)
+        embed_admin.add_field(name="Reccomend ?", value=would_recommend, inline=False)
+        embed_admin.add_field(name="Suggestions", value=suggestions, inline=False)
+        embed_admin.add_field(name="Issues", value=issues, inline=False)
+
+        embed_admin.set_footer(
+            text="Feedback Received",
+            icon_url=interaction.user.avatar,
+        )
+
+        await interaction.response.send_message(embed=embed_user, ephemeral=True)
+
+        channel = interaction.guild.get_channel(1340318888143093836)
+        await channel.send(embed=embed_admin)
 
 
 def setup(bot: discord.Bot) -> None:
