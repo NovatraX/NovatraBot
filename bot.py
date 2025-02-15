@@ -17,7 +17,12 @@ async def on_ready():
     print("---- + LOADED NovatraBot + -----")
     print("--------------------------------")
 
-    await bot.change_presence(activity=discord.Streaming(name="novatra.in", url="https://novatra.in",))
+    await bot.change_presence(
+        activity=discord.Streaming(
+            name="novatra.in",
+            url="https://novatra.in",
+        )
+    )
 
     start_time = datetime.datetime.now()
     bot.start_time = start_time
@@ -99,6 +104,24 @@ async def info(ctx: discord.ApplicationContext):
     embed.set_thumbnail(url=bot.user.avatar.url)
     await ctx.respond(embed=embed)
 
+
+@bot.slash_command(name="assests", description="Developer tool for assests")
+async def assests(ctx: discord.ApplicationContext):
+    embed = discord.Embed(
+        title=":hammer: Developer Tool",
+        description="Developer Tool For Assests",
+        color=0x2F3136,
+    )
+
+    embed.add_field(
+        name="<a:NovaCoins:1340334508838490223> NovaCoins",
+        value="<a:NovaStreak:1340335713526222889> NovaStreak",
+        inline=True,
+    )
+
+    await ctx.respond(embed=embed)
+
+
 @bot.event
 async def on_slash_command_error(ctx, error):
     if isinstance(error, commands.errors.CommandOnCooldown):
@@ -117,10 +140,12 @@ async def on_slash_command_error(ctx, error):
         await ctx.respond(":x: You Do Not Have Permission To Use This Command")
     else:
         await ctx.respond(":x: An Error Occurred")
-        
+
+
 try:
     bot.load_extension("utilities.feedback")
+    bot.load_extension("utilities.accountability")
 except Exception as e:
-    print(f"Error Loading Forms : {e}")
+    print(f"Error Loading : {e}")
 
 bot.run(TOKEN)
