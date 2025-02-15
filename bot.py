@@ -143,6 +143,8 @@ async def on_slash_command_error(ctx, error):
 
 
 try:
+    bot.load_extension("handlers.help")
+    bot.load_extension("handlers.reaction")
     bot.load_extension("utilities.feedback")
     bot.load_extension("utilities.accountability")
 except Exception as e:
