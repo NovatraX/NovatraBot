@@ -2,6 +2,7 @@ import os
 import dotenv
 import discord
 import datetime
+import traceback
 from discord.ext import commands
 
 dotenv.load_dotenv()
@@ -146,8 +147,10 @@ try:
     bot.load_extension("handlers.help")
     bot.load_extension("handlers.reaction")
     bot.load_extension("utilities.feedback")
+    bot.load_extension("handlers.moderation")
     bot.load_extension("utilities.accountability")
 except Exception as e:
     print(f"Error Loading : {e}")
+    traceback.print_exc()
 
 bot.run(TOKEN)
