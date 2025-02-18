@@ -32,15 +32,7 @@ class Help(commands.Cog):
             inline=False,
         )
 
-        cembed = discord.Embed(
-            title="List Available Categories",
-            description="### Accountability",
-            color=0x2F3136,
-        )
-
-        embeds = [embed, cembed]
-
-        await ctx.respond(embeds=embeds, view=CEmbed(self.bot))
+        await ctx.respond(embeds=embed, view=CEmbed(self.bot))
 
 
 class CEmbed(discord.ui.View):
