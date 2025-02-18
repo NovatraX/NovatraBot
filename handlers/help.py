@@ -32,7 +32,7 @@ class Help(commands.Cog):
             inline=False,
         )
 
-        await ctx.respond(embeds=embed, view=CEmbed(self.bot))
+        await ctx.respond(embed=embed, view=CEmbed(self.bot))
 
 
 class CEmbed(discord.ui.View):
