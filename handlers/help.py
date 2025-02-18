@@ -6,6 +6,8 @@ class Help(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
+        self.admin = [727012870683885578]
+
     @commands.slash_command(name="help", description="Sends Help Embed")
     async def help(self, ctx):
         embed = discord.Embed(
@@ -70,28 +72,67 @@ class CEmbed(discord.ui.View):
         )
 
         AccountabilityEmbed.add_field(
-            name=f"{self.bot.get_application_command('log').subcommands[1].mention}",
+            name=f"{self.bot.get_application_command('log').subcommands[2].mention}",
             value="Tells About Your Daily Progress And Statistics",
             inline=False,
         )
 
         AccountabilityEmbed.add_field(
-            name=f"{self.bot.get_application_command('log').subcommands[3].mention}",
+            name=f"{self.bot.get_application_command('log').subcommands[1].mention}",
             value="Deletes Your Tasks From Daily Accountability",
             inline=False,
         )
 
         AccountabilityEmbed.add_field(
-            name=f"{self.bot.get_application_command('log').subcommands[2].mention}",
+            name=f"{self.bot.get_application_command('log').subcommands[3].mention}",
             value="Shows The Leaderboard Of Most Accountable Users",
             inline=False,
         )
 
-        if select.values[0] == "Accountability":
-            await interaction.response.send_message(
-                embed=AccountabilityEmbed, ephemeral=True
-            )
+        AccountabilityEmbedAmin = discord.Embed(
+            title="Accountability Admin Commands",
+            description="List Of Accountability Admin Commands",
+            color=0x2F3136,
+        )
 
+        AccountabilityEmbedAmin.add_field(
+            name="/log admin reset",
+            value="Reset User's Daily Accountability",
+            inline=False,
+        )
+
+        AccountabilityEmbedAmin.add_field(
+            name="/log admin add_novacoins",
+            value="Add Novacoins To User's Account",
+            inline=False,
+        )
+
+        AccountabilityEmbedAmin.add_field(
+            name="/log admin remove_novacoins",
+            value="Remove Novacoins To User's Account",
+            inline=False,
+        )
+
+        AccountabilityEmbedAmin.add_field(
+            name="/log admin add_streak",
+            value="Add Streak To User's Account",
+            inline=False,
+        )
+
+        AccountabilityEmbedAmin.add_field(
+            name="/log admin remove_streak",
+            value="Add Streak To User's Account",
+            inline=False,
+        )
+
+        if interaction.user.id in self.bot.get_cog("Help").admin:
+            embeds = [AccountabilityEmbed, AccountabilityEmbedAmin]
+
+        else:
+            embeds = [AccountabilityEmbed]
+
+        if select.values[0] == "Accountability":
+            await interaction.response.send_message(embeds=embeds, ephemeral=True)
         else:
             await interaction.response.send_message("Invalid Option")
 
