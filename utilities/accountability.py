@@ -48,6 +48,8 @@ class AccountabilityCog(commands.Cog):
 
     @log.command(name="add", description="Log Your Daily Tasks")
     async def add(self, ctx: discord.ApplicationContext, task: str):
+        await ctx.defer()
+
         user_id = ctx.author.id
         today = datetime.now(timezone.utc).date()
         current_time = int(datetime.now(timezone.utc).timestamp())
@@ -66,8 +68,12 @@ class AccountabilityCog(commands.Cog):
                 else None
             )
 
-            if last_logged != today:
-                streak = streak + 1 if last_logged == today - timedelta(days=1) else 1
+            if last_logged is None or last_logged != today:
+                if last_logged == today - timedelta(days=1):
+                    streak += 1
+                else:
+                    streak = 1
+
                 daily_multiplier = 0.02 * streak
                 novacoins += int(10 * daily_multiplier)
 
@@ -208,6 +214,8 @@ class AccountabilityCog(commands.Cog):
 
     @log.command(name="delete", description="Delete a logged task")
     async def log_delete(self, ctx: discord.ApplicationContext, task_number: int):
+        await ctx.defer()
+
         user_id = ctx.author.id
         today = datetime.now(timezone.utc).date()
 
@@ -323,6 +331,8 @@ class AccountabilityCog(commands.Cog):
     async def stats(
         self, ctx: discord.ApplicationContext, member: discord.Member = None
     ):
+        await ctx.defer()
+
         member = member or ctx.author
         user_id = member.id
 
@@ -356,6 +366,8 @@ class AccountabilityCog(commands.Cog):
 
     @log.command(name="leaderboard", description="Get Accountability Leaderboard")
     async def leaderboard(self, ctx: discord.ApplicationContext):
+        await ctx.defer()
+
         self.cursor.execute(
             "SELECT user_id, novacoins FROM accountability ORDER BY novacoins DESC LIMIT 10"
         )
@@ -390,6 +402,8 @@ class AccountabilityCog(commands.Cog):
     async def reset(
         self, ctx: discord.ApplicationContext, member: discord.Member = None
     ):
+        await ctx.defer()
+
         if ctx.author.id not in self.admin:
             await ctx.respond(
                 "Bother / Sister this command is not for ya! Try contacting the users with GOD complexity ( For eg : <@727012870683885578> ) ",
@@ -417,174 +431,6 @@ class AccountabilityCog(commands.Cog):
         )
 
         await ctx.respond(embed=embed)
-
-    # ================================================================================================= #
-
-    @log_admin.command(name="add_streak", description="Add Streak To A User")
-    async def add_streak(
-        self, ctx: discord.ApplicationContext, member: discord.Member, streak: int
-    ):
-        if ctx.author.id not in self.admin:
-            await ctx.respond(
-                "Bother / Sister this command is not for ya! Try contacting the users with GOD complexity ( For eg : <@727012870683885578> ) ",
-                ephemeral=True,
-            )
-            return
-
-        if member is None:
-            member = ctx.author
-
-        user_id = member.id
-
-        self.cursor.execute(
-            "SELECT streak FROM accountability WHERE user_id = ?", (user_id,)
-        )
-
-        row = self.cursor.fetchone()
-
-        if row:
-            streak += row[0]
-
-            self.cursor.execute(
-                "UPDATE accountability SET streak = ? WHERE user_id = ?",
-                (streak, user_id),
-            )
-            self.conn.commit()
-
-            embed = discord.Embed(
-                title="🔄 Streak Added",
-                description=f"{streak} Days Have Been Added To {member.mention}'s Streak!",
-                color=0x2ECC71,
-            )
-
-            await ctx.respond(embed=embed)
-
-    # ================================================================================================= #
-
-    @log_admin.command(name="remove_streak", description="Remove Streak From A User")
-    async def remove_streak(
-        self, ctx: discord.ApplicationContext, member: discord.Member, streak: int
-    ):
-        if ctx.author.id not in self.admin:
-            await ctx.respond(
-                "Bother / Sister this command is not for ya! Try contacting the users with GOD complexity ( For eg : <@727012870683885578> ) ",
-                ephemeral=True,
-            )
-            return
-
-        if member is None:
-            member = ctx.author
-
-        user_id = member.id
-
-        self.cursor.execute(
-            "SELECT streak FROM accountability WHERE user_id = ?", (user_id,)
-        )
-
-        row = self.cursor.fetchone()
-
-        if row:
-            streak -= row[0]
-
-            self.cursor.execute(
-                "UPDATE accountability SET streak = ? WHERE user_id = ?",
-                (streak, user_id),
-            )
-            self.conn.commit()
-
-            embed = discord.Embed(
-                title="🔄 Streak Removed",
-                description=f"{streak} Days Have Been Removed From {member.mention}'s Streak!",
-                color=0xE74C3C,
-            )
-
-            await ctx.respond(embed=embed)
-
-    # ================================================================================================= #
-
-    @log_admin.command(name="add_novacoins", description="Add NovaCoins To A User")
-    async def add_novacoins(
-        self, ctx: discord.ApplicationContext, member: discord.Member, novacoins: int
-    ):
-        if ctx.author.id not in self.admin:
-            await ctx.respond(
-                "Bother / Sister this command is not for ya! Try contacting the users with GOD complexity ( For eg : <@727012870683885578> ) ",
-                ephemeral=True,
-            )
-            return
-
-        if member is None:
-            member = ctx.author
-
-        user_id = member.id
-
-        self.cursor.execute(
-            "SELECT novacoins FROM accountability WHERE user_id = ?", (user_id,)
-        )
-
-        row = self.cursor.fetchone()
-
-        if row:
-            novacoins += row[0]
-
-            self.cursor.execute(
-                "UPDATE accountability SET novacoins = ? WHERE user_id = ?",
-                (novacoins, user_id),
-            )
-            self.conn.commit()
-
-            embed = discord.Embed(
-                title="🔄 NovaCoins Added",
-                description=f"{novacoins} NovaCoins Have Been Added To {member.mention}'s Account!",
-                color=0x2ECC71,
-            )
-
-            await ctx.respond(embed=embed)
-
-    # ================================================================================================= #
-
-    @log_admin.command(
-        name="remove_novacoins", description="Remove NovaCoins From A User"
-    )
-    async def remove_novacoins(
-        self, ctx: discord.ApplicationContext, member: discord.Member, novacoins: int
-    ):
-        if ctx.author.id not in self.admin:
-            await ctx.respond(
-                "Bother / Sister this command is not for ya! Try contacting the users with GOD complexity ( For eg : <@727012870683885578> ) ",
-                ephemeral=True,
-            )
-            return
-
-        if member is None:
-            member = ctx.author
-
-        user_id = member.id
-
-        self.cursor.execute(
-            "SELECT novacoins FROM accountability WHERE user_id = ?", (user_id,)
-        )
-
-        row = self.cursor.fetchone()
-
-        if row:
-            novacoins -= row[0]
-
-            self.cursor.execute(
-                "UPDATE accountability SET novacoins = ? WHERE user_id = ?",
-                (novacoins, user_id),
-            )
-            self.conn.commit()
-
-            embed = discord.Embed(
-                title="🔄 NovaCoins Removed",
-                description=f"{novacoins} NovaCoins Have Been Removed From {member.mention}'s Account!",
-                color=0xE74C3C,
-            )
-
-            await ctx.respond(embed=embed)
-
-    # ================================================================================================= #
 
 
 def setup(bot: discord.Bot) -> None:
