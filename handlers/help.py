@@ -93,30 +93,6 @@ class CEmbed(discord.ui.View):
             inline=False,
         )
 
-        AccountabilityEmbedAmin.add_field(
-            name="/log admin add_novacoins",
-            value="Add Novacoins To User's Account",
-            inline=False,
-        )
-
-        AccountabilityEmbedAmin.add_field(
-            name="/log admin remove_novacoins",
-            value="Remove Novacoins To User's Account",
-            inline=False,
-        )
-
-        AccountabilityEmbedAmin.add_field(
-            name="/log admin add_streak",
-            value="Add Streak To User's Account",
-            inline=False,
-        )
-
-        AccountabilityEmbedAmin.add_field(
-            name="/log admin remove_streak",
-            value="Add Streak To User's Account",
-            inline=False,
-        )
-
         if interaction.user.id in self.bot.get_cog("Help").admin:
             embeds = [AccountabilityEmbed, AccountabilityEmbedAmin]
 
