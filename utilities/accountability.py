@@ -54,57 +54,68 @@ class AccountabilityCog(commands.Cog):
         today = datetime.now(timezone.utc).date()
         current_time = int(datetime.now(timezone.utc).timestamp())
 
-        self.cursor.execute(
-            "SELECT novacoins, streak, last_logged FROM accountability WHERE user_id = ?",
-            (user_id,),
-        )
-        row = self.cursor.fetchone()
+        # Transaction TO Ensure Data Consistency
+        try:
+            self.conn.execute("BEGIN TRANSACTION")
 
-        if row:
-            novacoins, streak, last_logged = row
-            last_logged = (
-                datetime.strptime(last_logged, "%Y-%m-%d").date()
-                if last_logged
-                else None
-            )
-
-            if last_logged is None or last_logged != today:
-                if last_logged == today - timedelta(days=1):
-                    streak += 1
-                else:
-                    streak = 1
-
-                daily_multiplier = 0.02 * streak
-                novacoins += int(10 * daily_multiplier)
-
-                self.cursor.execute(
-                    "UPDATE accountability SET novacoins = ?, streak = ?, last_logged = ? WHERE user_id = ?",
-                    (novacoins, streak, today, user_id),
-                )
-        else:
-            novacoins, streak = 10, 1
+            # Process User Streak And NovaCoins In One Go
             self.cursor.execute(
-                "INSERT INTO accountability (user_id, novacoins, streak, last_logged) VALUES (?, ?, ?, ?)",
-                (user_id, novacoins, streak, today),
+                "SELECT novacoins, streak, last_logged FROM accountability WHERE user_id = ?",
+                (user_id,),
+            )
+            row = self.cursor.fetchone()
+
+            if row:
+                novacoins, streak, last_logged = row
+                last_logged = (
+                    datetime.strptime(last_logged, "%Y-%m-%d").date()
+                    if last_logged
+                    else None
+                )
+
+                # Update Srteak And NovaCoins If User Logs Daily
+                if last_logged != today:
+                    if last_logged == today - timedelta(days=1):
+                        streak += 1
+
+                    # Calculate And Update NovaCoins
+                    daily_bonus = int(10 * (0.02 * streak))
+                    novacoins += daily_bonus
+
+                    self.cursor.execute(
+                        "UPDATE accountability SET novacoins = ?, streak = ?, last_logged = ? WHERE user_id = ?",
+                        (novacoins, streak, today, user_id),
+                    )
+            else:
+                # First Time User
+                novacoins, streak = 10, 1
+                self.cursor.execute(
+                    "INSERT INTO accountability (user_id, novacoins, streak, last_logged) VALUES (?, ?, ?, ?)",
+                    (user_id, novacoins, streak, today),
+                )
+
+            # Add Task To Logs
+            self.cursor.execute(
+                "INSERT INTO accountability_logs (user_id, task, logged_date, logged_time) VALUES (?, ?, ?, ?)",
+                (user_id, task, today, current_time),
             )
 
-        self.cursor.execute(
-            "INSERT INTO accountability_logs (user_id, task, logged_date, logged_time) VALUES (?, ?, ?, ?)",
-            (user_id, task, today, current_time),
-        )
-        self.conn.commit()
+            # Add Random NovaCoins Bonus
+            random_bonus = random.randint(1, 5)
+            novacoins += random_bonus
+            self.cursor.execute(
+                "UPDATE accountability SET novacoins = ? WHERE user_id = ?",
+                (novacoins, user_id),
+            )
 
-        self.cursor.execute(
-            "SELECT novacoins, streak FROM accountability WHERE user_id = ?", (user_id,)
-        )
-        novacoins, streak = self.cursor.fetchone()
-        novacoins += random.randint(1, 5)
+            # Commit Transaction
+            self.conn.commit()
+        except Exception as e:
+            self.conn.rollback()
+            await ctx.respond(f"Error logging task: {str(e)}", ephemeral=True)
+            return
 
-        self.cursor.execute(
-            "UPDATE accountability SET novacoins = ? WHERE user_id = ?",
-            (novacoins, user_id),
-        )
-
+        # Fetch All Tasks For The Day And Generate Motivation Message
         self.cursor.execute(
             "SELECT task FROM accountability_logs WHERE user_id = ? AND logged_date = ? ORDER BY logged_time ASC",
             (user_id, today),
@@ -112,41 +123,39 @@ class AccountabilityCog(commands.Cog):
         tasks_today = [row[0] for row in self.cursor.fetchall()]
         formatted_tasks = "\n".join(f"- {t}" for t in tasks_today)
 
-        motivation_prompt = f"""
-        User has logged the following tasks today:
-        {formatted_tasks}
-        
-        Provide a single-line, powerful motivational message based on these tasks.
-        """
+        # Generate Motivation Message
+        motivation_prompt = f"User has logged the following tasks today:\n{formatted_tasks}\n\nProvide a single-line, powerful motivational message based on these tasks."
+        try:
+            response = self.aiclient.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "You reply in single sentence as small as possible. You are a highly motivational and insightful assistant. You speak in English and use simple terms so that all people can understand it. Your role is to analyze a user's logged tasks and provide them with a single-line, impactful message that fuels their determination, boosts their morale, and encourages them to keep going. Make it personal, inspiring, and energizing. Keep it concise but powerful!",
+                    },
+                    {"role": "user", "content": motivation_prompt},
+                ],
+                temperature=0.8,
+                max_tokens=50,
+                top_p=1,
+            )
+            motivation_message = response.choices[0].message.content.strip()
+        except Exception:
+            fallback_messages = [
+                "Every task completed brings you closer to your goals!",
+                "Your consistency is building something amazing!",
+                "Small steps today, giant leaps tomorrow!",
+                "Your dedication is truly inspiring!",
+                "Keep pushing forward, you're doing great!",
+            ]
+            motivation_message = random.choice(fallback_messages)
 
-        response = self.aiclient.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[
-                {
-                    "role": "system",
-                    "content": (
-                        "You reply in single sentence as small as possible."
-                        "You are a highly motivational and insightful assistant. "
-                        "You spreak in english and use simple english terms so that all people can unserstand it. "
-                        "Your role is to analyze a user's logged tasks and provide them with a single-line, impactful message "
-                        "that fuels their determination, boosts their morale, and encourages them to keep going. "
-                        "Make it personal, inspiring, and energizing. Keep it concise but powerful!"
-                    ),
-                },
-                {"role": "user", "content": motivation_prompt},
-            ],
-            temperature=0.8,
-            max_tokens=50,
-            top_p=1,
-        )
-        motivation_message = response.choices[0].message.content.strip()
-
+        # Create Response Embed
         response_msg = discord.Embed(
             title="📝 Task Logged",
             description=f"**{len(tasks_today)}.** {task}",
             color=0xAAB99A,
         )
-
         response_msg.add_field(
             name="<a:NovaStreak:1340335713526222889> Streak",
             value=f"{streak} Days",
@@ -156,7 +165,6 @@ class AccountabilityCog(commands.Cog):
             name="<a:NovaCoins:1340334508838490223> NovaCoins",
             value=f"{int(novacoins)}",
         )
-
         response_msg.add_field(
             name="✨ Quick Motivation",
             value=f"*{motivation_message}*",
@@ -165,6 +173,14 @@ class AccountabilityCog(commands.Cog):
 
         await ctx.respond(embed=response_msg)
 
+        # Update Accountability Channel
+        await self._update_accountability_channel(ctx, user_id, today, current_time)
+
+    async def _update_accountability_channel(self, ctx, user_id, today, current_time):
+        channel = ctx.guild.get_channel(1340317410611429376)
+        if not channel:
+            return
+
         self.cursor.execute(
             "SELECT task, message_id, logged_time FROM accountability_logs WHERE user_id = ? AND logged_date = ? ORDER BY logged_time ASC",
             (user_id, today),
@@ -172,28 +188,24 @@ class AccountabilityCog(commands.Cog):
         rows = self.cursor.fetchall()
 
         tasks_today = []
-        message_ids = []
+        message_ids = set()
         latest_logged_time = current_time
+
         for index, (task_entry, msg_id, log_time) in enumerate(rows, start=1):
             tasks_today.append(f"**{index}.** {task_entry}")
             if msg_id is not None:
-                message_ids.append(msg_id)
-            latest_logged_time = max(latest_logged_time, int(log_time))
+                message_ids.add(msg_id)
+            if log_time:
+                latest_logged_time = max(latest_logged_time, int(log_time))
 
         task_summary = "\n".join(tasks_today)
-
-        channel = ctx.guild.get_channel(1340317410611429376)
 
         for message_id in message_ids:
             try:
                 message = await channel.fetch_message(message_id)
                 await message.delete()
-            except discord.NotFound:
-                print(f"+ Message With ID {message_id} Missing")
-            except discord.Forbidden:
-                print(f"+ Missing Permissions To Delete {message_id}")
-            except Exception as e:
-                print(f"+ Error Deleting {message_id} : {e}")
+            except (discord.NotFound, discord.Forbidden, Exception) as e:
+                print(f"+ Error with message {message_id}: {type(e).__name__}: {e}")
 
         tasks_embed = discord.Embed(
             title=f"📝 {ctx.author.display_name}'s Tasks For Today",
@@ -204,6 +216,7 @@ class AccountabilityCog(commands.Cog):
 
         message = await channel.send(embed=tasks_embed)
 
+        # Update All Logged Tasks With New Message ID
         self.cursor.execute(
             "UPDATE accountability_logs SET message_id = ? WHERE user_id = ? AND logged_date = ?",
             (message.id, user_id, today),
@@ -249,7 +262,7 @@ class AccountabilityCog(commands.Cog):
         )
 
         novacoins, streak = self.cursor.fetchone()
-        novacoins -= 10 * 0.02 * streak
+        novacoins -= 10 + 0.2 * streak
 
         self.cursor.execute(
             "UPDATE accountability SET novacoins = ? WHERE user_id = ?",
@@ -364,6 +377,40 @@ class AccountabilityCog(commands.Cog):
 
     # ================================================================================================= #
 
+    @log.command(name="history", description="Get Your Accountability History")
+    async def history(self, ctx: discord.ApplicationContext):
+        await ctx.defer()
+
+        member = ctx.author
+        user_id = member.id
+
+        self.cursor.execute(
+            "SELECT task, logged_date, logged_time FROM accountability_logs WHERE user_id = ? ORDER BY logged_time DESC LIMIT 10",
+            (user_id,),
+        )
+        rows = self.cursor.fetchall()
+
+        if not rows:
+            await ctx.respond("📜 No Tasks Logged Yet!", ephemeral=True)
+            return
+
+        history_text = "\n".join(
+            [
+                f"**{i + 1}.** {row[0]} - <t:{int(row[2])}:F>"
+                for i, row in enumerate(rows)
+            ]
+        )
+
+        history_embed = discord.Embed(
+            title=f"📜 {member.display_name}'s Tasks",
+            description=history_text,
+            color=0xAAB99A,
+        )
+
+        await ctx.respond(embed=history_embed)
+
+    # ================================================================================================= #
+
     @log.command(name="leaderboard", description="Get Accountability Leaderboard")
     async def leaderboard(self, ctx: discord.ApplicationContext):
         await ctx.defer()
@@ -431,6 +478,192 @@ class AccountabilityCog(commands.Cog):
         )
 
         await ctx.respond(embed=embed)
+
+    # ================================================================================================= #
+
+    @log_admin.command(name="add", description="Add NovaCoins And Streak To A User")
+    async def add_currency(
+        self,
+        ctx: discord.ApplicationContext,
+        member: discord.Member,
+        novacoins: int = 0,
+        streak: int = 0,
+    ):
+        await ctx.defer()
+
+        if ctx.author.id not in self.admin:
+            await ctx.respond(
+                "Bother / Sister this command is not for ya! Try contacting the users with GOD complexity ( For eg : <@727012870683885578> ) ",
+                ephemeral=True,
+            )
+            return
+
+        user_id = member.id
+
+        self.cursor.execute(
+            "SELECT novacoins, streak FROM accountability WHERE user_id = ?", (user_id,)
+        )
+        row = self.cursor.fetchone()
+
+        if row:
+            current_novacoins, current_streak = row
+            new_novacoins = current_novacoins + novacoins
+            new_streak = current_streak + streak
+
+            self.cursor.execute(
+                "UPDATE accountability SET novacoins = ?, streak = ? WHERE user_id = ?",
+                (new_novacoins, new_streak, user_id),
+            )
+        else:
+            new_novacoins = novacoins
+            new_streak = streak
+            today = datetime.now(timezone.utc).date()
+            self.cursor.execute(
+                "INSERT INTO accountability (user_id, novacoins, streak, last_logged) VALUES (?, ?, ?, ?)",
+                (user_id, new_novacoins, new_streak, today),
+            )
+
+        self.conn.commit()
+
+        embed = discord.Embed(
+            title="💰 Currency Added",
+            description=f"Successfully Added Currency To {member.mention}",
+            color=0xAAB99A,
+        )
+
+        embed.add_field(
+            name="Updated NovaCoins",
+            value=f"{new_novacoins}",
+            inline=True,
+        )
+        embed.add_field(
+            name="Updated Streak",
+            value=f"{new_streak} Days",
+            inline=False,
+        )
+
+        await ctx.respond(embed=embed)
+
+    # ================================================================================================= #
+
+    @log_admin.command(
+        name="remove", description="Remove NovaCoins And Streak From A User"
+    )
+    async def remove_currency(
+        self,
+        ctx: discord.ApplicationContext,
+        member: discord.Member,
+        novacoins: int = 0,
+        streak: int = 0,
+    ):
+        await ctx.defer()
+
+        if ctx.author.id not in self.admin:
+            await ctx.respond(
+                "Bother / Sister this command is not for ya! Try contacting the users with GOD complexity ( For eg : <@727012870683885578> ) ",
+                ephemeral=True,
+            )
+            return
+
+        user_id = member.id
+
+        self.cursor.execute(
+            "SELECT novacoins, streak FROM accountability WHERE user_id = ?", (user_id,)
+        )
+        row = self.cursor.fetchone()
+
+        if row:
+            current_novacoins, current_streak = row
+            new_novacoins = current_novacoins - novacoins
+            new_streak = current_streak - streak
+
+            self.cursor.execute(
+                "UPDATE accountability SET novacoins = ?, streak = ? WHERE user_id = ?",
+                (new_novacoins, new_streak, user_id),
+            )
+        else:
+            new_novacoins = novacoins
+            new_streak = streak
+            today = datetime.now(timezone.utc).date()
+            self.cursor.execute(
+                "INSERT INTO accountability (user_id, novacoins, streak, last_logged) VALUES (?, ?, ?, ?)",
+                (user_id, new_novacoins, new_streak, today),
+            )
+
+        self.conn.commit()
+
+        embed = discord.Embed(
+            title="💰 Currency Removed",
+            description=f"Successfully Remove Currency From {member.mention}",
+            color=0xAAB99A,
+        )
+
+        embed.add_field(
+            name="Updated NovaCoins",
+            value=f"{new_novacoins}",
+            inline=True,
+        )
+        embed.add_field(
+            name="Updated Streak",
+            value=f"{new_streak} Days",
+            inline=False,
+        )
+
+        await ctx.respond(embed=embed)
+
+    # ================================================================================================= #
+
+    @commands.Cog.listener()
+    async def on_member_remove(self, member):
+        user_id = member.id
+
+        try:
+            self.cursor.execute(
+                "DELETE FROM accountability WHERE user_id = ?", (user_id,)
+            )
+
+            self.cursor.execute(
+                "DELETE FROM accountability_logs WHERE user_id = ?", (user_id,)
+            )
+
+            self.conn.commit()
+            print(f"Removed Data For User {user_id} Who Left The Server")
+        except Exception as e:
+            print(f"Error Removing Data For The User {user_id}: {str(e)}")
+
+    async def cog_load(self):
+        await self.bot.wait_until_ready()
+
+        self.cursor.execute("SELECT DISTINCT user_id FROM accountability")
+        db_users = [row[0] for row in self.cursor.fetchall()]
+
+        users_to_remove = []
+
+        for user_id in db_users:
+            user_found = False
+            for guild in self.bot.guilds:
+                if guild.get_member(user_id) is not None:
+                    user_found = True
+                    break
+
+            if not user_found:
+                users_to_remove.append(user_id)
+
+        for user_id in users_to_remove:
+            try:
+                self.cursor.execute(
+                    "DELETE FROM accountability WHERE user_id = ?", (user_id,)
+                )
+                self.cursor.execute(
+                    "DELETE FROM accountability_logs WHERE user_id = ?", (user_id,)
+                )
+                print(
+                    f"Cleaned Up Data For User {user_id} Who Is No Longer In Any Server"
+                )
+            except Exception as e:
+                print(f"Error Cleaning Up Data For User {user_id}: {str(e)}")
+
+        self.conn.commit()
 
 
 def setup(bot: discord.Bot) -> None:
