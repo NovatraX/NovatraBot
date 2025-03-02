@@ -75,8 +75,10 @@ class AccountabilityCog(commands.Cog):
 
                 # Update Srteak And NovaCoins If User Logs Daily
                 if last_logged != today:
-                    if last_logged == today - timedelta(days=1):
-                        streak += 1
+                    if last_logged and (today - last_logged).days == 1:
+                        streak += 1  # Continue streak
+                    else:
+                        streak = 1  # Reset streak if a day was missed
 
                     # Calculate And Update NovaCoins
                     daily_bonus = int(10 * (0.02 * streak))
