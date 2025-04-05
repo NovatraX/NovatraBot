@@ -1,5 +1,5 @@
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 from discord import SlashCommandGroup
 from .database import AccountabilityDB
 from .helpers import AccountabilityHelpers
@@ -12,8 +12,9 @@ class AccountabilityCog(commands.Cog):
         self.commands = AccountabilityCommands(bot)
         self.db = self.commands.db
         self.helpers = self.commands.helpers
+        self.reminder_check.start()  
 
-    # ================================================================================================= #
+    
 
     log = SlashCommandGroup(name="log", description="Accountability Commands")
 
@@ -21,13 +22,13 @@ class AccountabilityCog(commands.Cog):
     async def add(self, ctx: discord.ApplicationContext, task: str):
         await self.commands.add_command(ctx, task)
 
-    # ================================================================================================= #
+    
 
     @log.command(name="delete", description="Delete a logged task")
     async def log_delete(self, ctx: discord.ApplicationContext, task_number: int):
         await self.commands.delete_command(ctx, task_number)
 
-    # ================================================================================================= #
+    
 
     @log.command(name="stats", description="Get Your Accountability Stats")
     async def stats(
@@ -35,25 +36,43 @@ class AccountabilityCog(commands.Cog):
     ):
         await self.commands.stats_command(ctx, member)
 
-    # ================================================================================================= #
+    
 
     @log.command(name="history", description="Get Your Accountability History")
     async def history(self, ctx: discord.ApplicationContext):
         await self.commands.history_command(ctx)
 
-    # ================================================================================================= #
+    
 
     @log.command(name="leaderboard", description="Get Accountability Leaderboard")
     async def leaderboard(self, ctx: discord.ApplicationContext):
         await self.commands.leaderboard_command(ctx)
 
-    # ================================================================================================= #
+    
     
     @log.command(name="set_target", description="Set your weekly task target")
     async def set_target(self, ctx: discord.ApplicationContext, target: int):
         await self.commands.set_weekly_target_command(ctx, target)
         
-    # ================================================================================================= #
+    
+    
+    reminder = log.create_subgroup(
+        name="reminder", description="Daily reminder settings"
+    )
+    
+    @reminder.command(name="set", description="Set a daily reminder to log your tasks")
+    async def reminder_set(self, ctx: discord.ApplicationContext, time: str):
+        await self.commands.set_reminder_command(ctx, time)
+        
+    @reminder.command(name="delete", description="Delete your daily task reminder")
+    async def reminder_delete(self, ctx: discord.ApplicationContext):
+        await self.commands.delete_reminder_command(ctx)
+        
+    @reminder.command(name="check", description="Check your current reminder settings")
+    async def reminder_check(self, ctx: discord.ApplicationContext):
+        await self.commands.check_reminder_command(ctx)
+    
+    
     
     store = log.create_subgroup(
         name="store", description="NovaCoins Store Commands"
@@ -75,7 +94,7 @@ class AccountabilityCog(commands.Cog):
     async def use_item(self, ctx: discord.ApplicationContext, item_number: int):
         await self.commands.use_item_command(ctx, item_number)
 
-    # ================================================================================================= #
+    
 
     log_admin = log.create_subgroup(
         name="admin", description="Accountability Admin Commands"
@@ -87,7 +106,7 @@ class AccountabilityCog(commands.Cog):
     ):
         await self.commands.reset_command(ctx, member)
 
-    # ================================================================================================= #
+    
 
     @log_admin.command(name="add", description="Add NovaCoins And Streak To A User")
     async def add_currency(
@@ -99,7 +118,7 @@ class AccountabilityCog(commands.Cog):
     ):
         await self.commands.add_currency_command(ctx, member, novacoins, streak)
 
-    # ================================================================================================= #
+    
 
     @log_admin.command(
         name="remove", description="Remove NovaCoins And Streak From A User"
@@ -113,7 +132,7 @@ class AccountabilityCog(commands.Cog):
     ):
         await self.commands.remove_currency_command(ctx, member, novacoins, streak)
         
-    # ================================================================================================= #
+    
     
     @log_admin.command(
         name="add_item", description="Add a new item to the store"
@@ -127,17 +146,28 @@ class AccountabilityCog(commands.Cog):
     ):
         await self.commands.add_item_command(ctx, name, price, description)
 
-    # ================================================================================================= #
+    
 
     @commands.Cog.listener()
     async def on_member_remove(self, member):
         await self.commands.on_member_remove(member)
+        
+    
+    @tasks.loop(minutes=1)
+    async def reminder_check(self):
+        await self.commands.send_reminders()
+    
+    
+    @reminder_check.before_loop
+    async def before_reminder_check(self):
+        await self.bot.wait_until_ready()
 
     async def cog_load(self):
         await self.bot.wait_until_ready()
         await self.commands.cleanup_missing_users()
 
     def cog_unload(self):
+        self.reminder_check.cancel()  
         self.db.close()
 
 
