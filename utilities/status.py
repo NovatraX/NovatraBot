@@ -50,29 +50,6 @@ class StatusCog(commands.Cog):
             "net_io": net_io,
         }
 
-    def get_system_load(self):
-        try:
-            load1, load5, load15 = os.getloadavg()
-            load_info = {"load1": load1, "load5": load5, "load15": load15}
-        except (AttributeError, OSError):
-            load_info = None
-
-        return load_info
-
-    def get_top_processes(self, limit=5):
-        processes = []
-        for proc in psutil.process_iter(
-            ["pid", "name", "cpu_percent", "memory_percent"]
-        ):
-            try:
-                pinfo = proc.info
-                processes.append(pinfo)
-            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
-                pass
-
-        processes = sorted(processes, key=lambda p: p["cpu_percent"], reverse=True)
-        return processes[:limit]
-
     def format_bytes(self, bytes):
         for unit in ["B", "KB", "MB", "GB", "TB"]:
             if bytes < 1024:
@@ -159,46 +136,6 @@ class StatusCog(commands.Cog):
 
         return embed
 
-    async def create_load_embed(self):
-        load_info = self.get_system_load()
-
-        top_processes = self.get_top_processes()
-
-        embed = discord.Embed(
-            title=f"⚙️ Additional System Status",
-            color=0x3498DB,
-            timestamp=datetime.datetime.now(),
-        )
-
-        if load_info:
-            embed.add_field(
-                name="⚙️ System Load",
-                value=(
-                    f"1 Minute : {load_info['load1']:.2f}\n"
-                    f"5 Minutes : {load_info['load5']:.2f}\n"
-                    f"15 Minutes : {load_info['load15']:.2f}"
-                ),
-                inline=False,
-            )
-
-        if top_processes:
-            processes_text = []
-            for i, proc in enumerate(top_processes, 1):
-                processes_text.append(
-                    f"{i}. **{proc['name']}** (PID: {proc['pid']})\n"
-                    f"   CPU : {proc['cpu_percent']:.1f}% | MEM : {proc['memory_percent']:.1f}%"
-                )
-
-            embed.add_field(
-                name="🔝 Top Processes",
-                value=(
-                    "\n".join(processes_text) if processes_text else "No Process Found"
-                ),
-                inline=False,
-            )
-
-        return embed
-
     @tasks.loop(minutes=2)
     async def update_status(self):
         if not self.status_channel_id:
@@ -208,18 +145,15 @@ class StatusCog(commands.Cog):
         if not channel:
             return
 
-        status_embed = await self.create_status_embed()
-        load_embed = await self.create_load_embed()
+        embed = await self.create_status_embed()
 
         if self.status_message:
             try:
-                await self.status_message.edit(embeds=[status_embed, load_embed])
+                await self.status_message.edit(embed=embed)
             except discord.NotFound:
-                self.status_message = await channel.send(
-                    embeds=[status_embed, load_embed]
-                )
+                self.status_message = await channel.send(embed=embed)
         else:
-            self.status_message = await channel.send(embeds=[status_embed, load_embed])
+            self.status_message = await channel.send(embed=embed)
 
     @update_status.before_loop
     async def before_update_status(self):
@@ -233,10 +167,8 @@ class StatusCog(commands.Cog):
             "✅ This Channel Will Receive Status Messages Every 2 Minutes"
         )
 
-        status_embed = await self.create_status_embed()
-        load_embed = await self.create_load_embed()
-
-        self.status_message = await ctx.send(embeds=[status_embed, load_embed])
+        embed = await self.create_status_embed()
+        self.status_message = await ctx.send(embed=embed)
 
 
 def setup(bot):
