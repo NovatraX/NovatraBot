@@ -157,7 +157,7 @@ class StatusCog(commands.Cog):
     async def before_update_status(self):
         await self.bot.wait_until_ready()
 
-    @commands.command(name="setstatus")
+    @commands.slash_command(name="setstatus", description="Set Status Channel")
     @commands.has_permissions(administrator=True)
     async def set_status_channel(self, ctx):
         self.status_channel_id = ctx.channel.id
