@@ -92,7 +92,7 @@ class StatusCog(commands.Cog):
             value=(
                 f"Usage : {cpu_bar} {info['cpu_usage']}%\n"
                 f"Cores : {info['cpu_count']}\n"
-                f"Frequency : {cpu_freq_current:.2f}MHz"
+                f"Frequency : {cpu_freq_current:.2f} MHz"
                 if cpu_freq_current != "N/A"
                 else "N/A"
             ),
@@ -105,7 +105,7 @@ class StatusCog(commands.Cog):
             value=f"Usage : {memory_bar} {info['memory'].percent}%\n"
             f"Total : {self.format_bytes(info['memory'].total)}\n"
             f"Available : {self.format_bytes(info['memory'].available)}",
-            inline=True,
+            inline=False,
         )
 
         disk_bar = self.create_progress_bar(info["disk"].percent)
@@ -114,14 +114,14 @@ class StatusCog(commands.Cog):
             value=f"Usage : {disk_bar} {info['disk'].percent}%\n"
             f"Total : {self.format_bytes(info['disk'].total)}\n"
             f"Free : {self.format_bytes(info['disk'].free)}",
-            inline=True,
+            inline=False,
         )
 
         embed.add_field(
             name="🌐 Network",
             value=f"Sent : {self.format_bytes(info['net_io'].bytes_sent)}\n"
             f"Received : {self.format_bytes(info['net_io'].bytes_recv)}",
-            inline=True,
+            inline=False,
         )
 
         uptime = info["uptime"]
@@ -161,7 +161,7 @@ class StatusCog(commands.Cog):
     @commands.has_permissions(administrator=True)
     async def set_status_channel(self, ctx):
         self.status_channel_id = ctx.channel.id
-        await ctx.send(
+        await ctx.respond(
             "✅ This Channel Will Receive Status Messages Every 2 Minutes"
         )
 
