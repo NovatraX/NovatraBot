@@ -169,5 +169,5 @@ class StatusCog(commands.Cog):
         self.status_message = await ctx.send(embed=embed)
 
 
-async def setup(bot):
-    await bot.add_cog(StatusCog(bot))
+def setup(bot):
+    bot.add_cog(StatusCog(bot))
