@@ -93,7 +93,7 @@ class StatusCog(commands.Cog):
             name="🧠 CPU",
             value=(
                 f"Usage : {cpu_bar} {info['cpu_usage']} %\n\n"
-                f"Cores : {info['cpu_count']}\n"
+                f"**Cores** : {info['cpu_count']}\n"
                 f"Frequency : {cpu_freq_current:.2f} MHz"
                 if cpu_freq_current != "N/A"
                 else "N/A"
@@ -104,7 +104,7 @@ class StatusCog(commands.Cog):
         memory_bar = self.create_progress_bar(info["memory"].percent)
         embed.add_field(
             name="💾 Memory",
-            value=f"Usage : {memory_bar} {info['memory'].percent} %\n\n"
+            value=f"**Usage** : {memory_bar} {info['memory'].percent} %\n\n"
             f"Total : {self.format_bytes(info['memory'].total)}\n"
             f"Available : {self.format_bytes(info['memory'].available)}",
             inline=False,
@@ -113,7 +113,7 @@ class StatusCog(commands.Cog):
         disk_bar = self.create_progress_bar(info["disk"].percent)
         embed.add_field(
             name="💿 Disk",
-            value=f"Usage : {disk_bar} {info['disk'].percent} %\n\n"
+            value=f"**Usage** : {disk_bar} {info['disk'].percent} %\n\n"
             f"Total : {self.format_bytes(info['disk'].total)}\n"
             f"Free : {self.format_bytes(info['disk'].free)}",
             inline=False,
