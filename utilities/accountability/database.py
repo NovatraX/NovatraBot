@@ -19,7 +19,6 @@ class AccountabilityDB:
                 highest_streak INTEGER DEFAULT 1,
                 last_logged TEXT,
                 total_tasks INTEGER DEFAULT 0,
-                grace_days_used INTEGER DEFAULT 0,
                 weekly_target INTEGER DEFAULT 5
             )"""
         )
@@ -80,7 +79,6 @@ class AccountabilityDB:
         new_columns = {
             "highest_streak": "INTEGER DEFAULT 1",
             "total_tasks": "INTEGER DEFAULT 0",
-            "grace_days_used": "INTEGER DEFAULT 0",
             "weekly_target": "INTEGER DEFAULT 5"
         }
         
@@ -100,36 +98,34 @@ class AccountabilityDB:
     def get_user_stats(self, user_id):
         """Get a user's stats from the database."""
         self.cursor.execute(
-            "SELECT novacoins, streak, last_logged, highest_streak, total_tasks, grace_days_used, weekly_target FROM accountability WHERE user_id = ?",
+            "SELECT novacoins, streak, last_logged, highest_streak, total_tasks, weekly_target FROM accountability WHERE user_id = ?",
             (user_id,),
         )
         return self.cursor.fetchone()
 
-    def update_user_stats(self, user_id, novacoins, streak, last_logged, highest_streak=None, grace_days_used=None):
+    def update_user_stats(self, user_id, novacoins, streak, last_logged, highest_streak=None):
         """Update a user's stats in the database."""
         
-        if highest_streak is None or grace_days_used is None:
+        if highest_streak is None:
             current_stats = self.get_user_stats(user_id)
             if current_stats:
                 if highest_streak is None:
                     highest_streak = current_stats[3]
-                if grace_days_used is None:
-                    grace_days_used = current_stats[5]
         
         
         if highest_streak < streak:
             highest_streak = streak
         
         self.cursor.execute(
-            "UPDATE accountability SET novacoins = ?, streak = ?, last_logged = ?, highest_streak = ?, grace_days_used = ? WHERE user_id = ?",
-            (novacoins, streak, last_logged, highest_streak, grace_days_used, user_id),
+            "UPDATE accountability SET novacoins = ?, streak = ?, last_logged = ?, highest_streak = ? WHERE user_id = ?",
+            (novacoins, streak, last_logged, highest_streak, user_id),
         )
         self.conn.commit()
 
     def create_user(self, user_id, novacoins, streak, last_logged):
         """Create a new user in the database."""
         self.cursor.execute(
-            "INSERT INTO accountability (user_id, novacoins, streak, last_logged, highest_streak, total_tasks, grace_days_used) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO accountability (user_id, novacoins, streak, last_logged, highest_streak, total_tasks) VALUES (?, ?, ?, ?, ?, ?, ?)",
             (user_id, novacoins, streak, last_logged, streak, 0, 0),
         )
         self.conn.commit()
