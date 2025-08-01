@@ -127,7 +127,7 @@ class AccountabilityCommands:
         weekly_count = self.db.get_weekly_tasks_count(user_id)
         weekly_target_message = ""
         if user_stats:
-            weekly_target = user_stats[6]
+            weekly_target = user_stats[5]
             weekly_progress = min(weekly_count / weekly_target * 100, 100)
             weekly_target_message = f"\n📊 Weekly Progress: {weekly_count}/{weekly_target} tasks ({weekly_progress:.1f}%)"
         
