@@ -69,7 +69,7 @@ class AccountabilityCommands:
             user_stats = self.db.get_user_stats(user_id)
 
             if user_stats:
-                novacoins, streak, last_logged, highest_streak, total_tasks, grace_days_used, weekly_target = user_stats
+                novacoins, streak, last_logged, highest_streak, total_tasks, weekly_target = user_stats
                 last_logged = (
                     datetime.strptime(last_logged, "%Y-%m-%d").date()
                     if last_logged
@@ -83,9 +83,6 @@ class AccountabilityCommands:
                     if streak_change == 1:
                         
                         streak += 1
-                    elif streak_change == 0:
-                        
-                        grace_days_used += 1
                         
                     else:
                         
@@ -96,11 +93,10 @@ class AccountabilityCommands:
                     novacoins += daily_bonus
 
                     
-                    self.db.update_user_stats(user_id, novacoins, streak, today, highest_streak, grace_days_used)
+                    self.db.update_user_stats(user_id, novacoins, streak, today, highest_streak)
             else:
                 
                 novacoins, streak = 10, 1
-                grace_days_used = 0
                 highest_streak = 1
                 self.db.create_user(user_id, novacoins, streak, today)
 
@@ -114,7 +110,7 @@ class AccountabilityCommands:
             
             
             self.db.log_task(user_id, task, today, current_time, task_reward)
-            self.db.update_user_stats(user_id, novacoins, streak, today, highest_streak, grace_days_used)
+            self.db.update_user_stats(user_id, novacoins, streak, today, highest_streak)
 
         except Exception as e:
             await ctx.respond(f"Error logging task: {str(e)}", ephemeral=True)
@@ -151,13 +147,6 @@ class AccountabilityCommands:
             value=f"{int(novacoins)} (+{task_reward} for this task)",
             inline=True,
         )
-        
-        if grace_days_used > 0:
-            response_msg.add_field(
-                name="💫 Grace Days Used",
-                value=f"{grace_days_used}",
-                inline=True,
-            )
         
         response_msg.add_field(
             name="✨ Quick Motivation",
@@ -224,11 +213,11 @@ class AccountabilityCommands:
 
         user_stats = self.db.get_user_stats(user_id)
         if user_stats:
-            novacoins, streak, _, highest_streak, total_tasks, grace_days_used, weekly_target = user_stats
+            novacoins, streak, _, highest_streak, total_tasks, weekly_target = user_stats
             weekly_count = self.db.get_weekly_tasks_count(user_id)
             weekly_progress = min(weekly_count / weekly_target * 100, 100) if weekly_target > 0 else 0
         else:
-            novacoins, streak, highest_streak, total_tasks, grace_days_used = 0, 0, 0, 0, 0
+            novacoins, streak, highest_streak, total_tasks = 0, 0, 0, 0
             weekly_count, weekly_target, weekly_progress = 0, 5, 0
 
         stats_embed = discord.Embed(
@@ -250,13 +239,6 @@ class AccountabilityCommands:
             value=f"{total_tasks}",
             inline=True,
         )
-        
-        if grace_days_used > 0:
-            stats_embed.add_field(
-                name="💫 Grace Days Used",
-                value=f"{grace_days_used}",
-                inline=True,
-            )
             
         stats_embed.add_field(
             name="📊 Weekly Progress",

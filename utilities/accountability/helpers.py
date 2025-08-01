@@ -47,7 +47,7 @@ class AccountabilityHelpers:
         
     def calculate_streak(self, last_logged, today):
         """Calculate a user's streak based on their last logged date.
-        Implements a more forgiving streak system with grace periods."""
+        Implements a streak system."""
         if not last_logged:
             return 0
             
@@ -55,13 +55,7 @@ class AccountabilityHelpers:
         
         
         if days_difference == 1:
-            return 1
-            
-        
-        elif days_difference == 2:
-            
-            return 0  
-            
+            return 1            
         
         else:
             return -1  
