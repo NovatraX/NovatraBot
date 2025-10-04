@@ -1,32 +1,26 @@
 import discord
-import gspread
 from discord.ext import commands
-from oauth2client.service_account import ServiceAccountCredentials
 
-scope = [
-    "https://spreadsheets.google.com/feeds",
-    "https://www.googleapis.com/auth/drive",
-]
-creds = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
-
-client = gspread.authorize(creds)
-sheet = client.open("Novatra Feedback").sheet1
-
-print("-- + Google Sheets Loaded + ----")
+feedback_channel_id = 1340318888143093836
 
 
-class FeekbackCog(discord.Cog):
-    def __init__(self, bot: discord.Bot) -> None:
+class FeedbackCog(commands.Cog):
+    def __init__(
+        self, bot: discord.Bot, feedback_channel_id: int = feedback_channel_id
+    ) -> None:
         self.bot = bot
+        self.feedback_channel_id = feedback_channel_id
 
     @commands.slash_command(name="feedback", description="Submit Your Feedback")
     async def feedback(self, ctx: discord.ApplicationContext):
-        await ctx.send_modal(FeedbackModal())
+        await ctx.send_modal(FeedbackModal(self.bot, self.feedback_channel_id))
 
 
 class FeedbackModal(discord.ui.Modal):
-    def __init__(self):
+    def __init__(self, bot: discord.Bot, feedback_channel_id: int):
         super().__init__(title="User Feedback")
+        self.bot = bot
+        self.feedback_channel_id = feedback_channel_id
 
         self.add_item(
             discord.ui.InputText(
@@ -63,46 +57,56 @@ class FeedbackModal(discord.ui.Modal):
         issues = self.children[2].value
         suggestions = self.children[3].value
 
-        sheet.append_row(
-            [
-                str(interaction.user),
-                str(interaction.user.id),
-                experience,
-                would_recommend,
-                issues,
-                suggestions,
-            ]
-        )
-
-        print("-- + Feedback Submitted + ------")
-
         embed_user = discord.Embed(
             title="Feedback Submitted Successfully",
-            description="Thank you for submitting your feedback !",
+            description="Thank you for submitting your feedback!",
             color=discord.Color.green(),
         )
+        await interaction.response.send_message(embed=embed_user, ephemeral=True)
+
         embed_admin = discord.Embed(
             title="New Feedback Received",
             color=discord.Color.green(),
+            timestamp=discord.utils.utcnow(),
         )
 
-        embed_admin.add_field(name="User", value=str(interaction.user))
-        embed_admin.add_field(name="User ID", value=f"<@{str(interaction.user.id)}")
-        embed_admin.add_field(name="Experience", value=experience)
-        embed_admin.add_field(name="Reccomend ?", value=would_recommend, inline=False)
-        embed_admin.add_field(name="Suggestions", value=suggestions, inline=False)
-        embed_admin.add_field(name="Issues", value=issues, inline=False)
-
-        embed_admin.set_footer(
-            text="Feedback Received",
-            icon_url=interaction.user.avatar,
+        embed_admin.add_field(name="User", value=str(interaction.user), inline=False)
+        embed_admin.add_field(
+            name="User ID", value=f"<@{interaction.user.id}>", inline=False
+        )
+        embed_admin.add_field(name="Experience", value=experience, inline=False)
+        embed_admin.add_field(name="Recommend?", value=would_recommend, inline=False)
+        embed_admin.add_field(
+            name="Suggestions", value=suggestions or "No suggestions", inline=False
+        )
+        embed_admin.add_field(
+            name="Issues", value=issues or "No issues reported", inline=False
         )
 
-        await interaction.response.send_message(embed=embed_user, ephemeral=True)
+        try:
+            avatar_url = interaction.user.display_avatar.url
+        except Exception:
+            avatar_url = None
 
-        channel = interaction.guild.get_channel(1340318888143093836)
+        if avatar_url:
+            embed_admin.set_footer(text="Feedback Received", icon_url=avatar_url)
+        else:
+            embed_admin.set_footer(text="Feedback Received")
+
+        channel = self.bot.get_channel(self.feedback_channel_id)
+
+        if channel is None and interaction.guild is not None:
+            channel = interaction.guild.get_channel(self.feedback_channel_id)
+
+        if channel is None:
+            print(
+                f"Warning : Admin Channel With ID {self.feedback_channel_id} Not FOund. Feedback From {interaction.user} Could Not Posted."
+            )
+
+            return
+
         await channel.send(embed=embed_admin)
 
 
 def setup(bot: discord.Bot) -> None:
-    bot.add_cog(FeekbackCog(bot))
+    bot.add_cog(FeedbackCog(bot))
