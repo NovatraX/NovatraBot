@@ -49,6 +49,12 @@ class AccountabilityCog(commands.Cog):
         await self.commands.leaderboard_command(ctx)
 
     
+
+    @log.command(name="weekly", description="Get Your Weekly Summary")
+    async def weekly(self, ctx: discord.ApplicationContext):
+        await self.commands.weekly_command(ctx)
+
+    
     
     @log.command(name="set_target", description="Set your weekly task target")
     async def set_target(self, ctx: discord.ApplicationContext, target: int):
