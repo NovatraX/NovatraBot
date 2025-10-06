@@ -1,8 +1,6 @@
 import discord
 import random
-from discord.ext import commands
-from discord import SlashCommandGroup
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from .database import AccountabilityDB
 from .helpers import AccountabilityHelpers
 
@@ -80,7 +78,7 @@ class AccountabilityCommands:
                 if last_logged != today:
                     streak_change = self.helpers.calculate_streak(last_logged, today)
                     
-                    if streak_change == 1:
+                    if streak_change:
                         
                         streak += 1
                         
@@ -246,6 +244,26 @@ class AccountabilityCommands:
             inline=False,
         )
 
+        # Achievements
+        achievements = []
+        if streak >= 7:
+            achievements.append("🔥 Week Warrior")
+        if streak >= 30:
+            achievements.append("💪 Month Master")
+        if highest_streak >= 100:
+            achievements.append("🏆 Century Champion")
+        if total_tasks >= 100:
+            achievements.append("📚 Task Titan")
+        if novacoins >= 1000:
+            achievements.append("💰 Coin Collector")
+
+        if achievements:
+            stats_embed.add_field(
+                name="🏅 Achievements",
+                value="\n".join(achievements),
+                inline=False,
+            )
+
         await ctx.respond(embed=stats_embed)
 
     async def history_command(self, ctx: discord.ApplicationContext):
@@ -274,6 +292,66 @@ class AccountabilityCommands:
         )
 
         await ctx.respond(embed=history_embed)
+
+    async def weekly_command(self, ctx: discord.ApplicationContext):
+        """Get a user's weekly summary."""
+        await ctx.defer()
+
+        member = ctx.author
+        user_id = member.id
+
+        weekly_logs = self.db.get_weekly_logs(user_id)
+        user_stats = self.db.get_user_stats(user_id)
+        weekly_count = len(weekly_logs) if weekly_logs else 0
+        total_coins_earned = sum(row[3] for row in weekly_logs) if weekly_logs else 0
+
+        if user_stats:
+            weekly_target = user_stats[5]
+            weekly_progress = min(weekly_count / weekly_target * 100, 100) if weekly_target > 0 else 0
+        else:
+            weekly_target, weekly_progress = 5, 0
+
+        weekly_embed = discord.Embed(
+            title=f"📊 {member.display_name}'s Weekly Summary",
+            description=f"Tasks completed this week: **{weekly_count}/{weekly_target}** ({weekly_progress:.1f}%)",
+            color=0xAAB99A,
+        )
+
+        if weekly_logs:
+            tasks_by_day = {}
+            for task, date, time, reward in weekly_logs:
+                day = date
+                if day not in tasks_by_day:
+                    tasks_by_day[day] = []
+                tasks_by_day[day].append((task, reward))
+
+            summary_text = ""
+            for day, tasks in sorted(tasks_by_day.items()):
+                day_name = datetime.strptime(day, "%Y-%m-%d").strftime("%A")
+                summary_text += f"**{day_name} ({day}):**\n"
+                for task, reward in tasks:
+                    summary_text += f"• {task}" + (f" (+{reward} coins)" if reward > 0 else "") + "\n"
+                summary_text += "\n"
+
+            weekly_embed.add_field(
+                name="📝 Tasks This Week",
+                value=summary_text[:1024],  # Discord embed limit
+                inline=False,
+            )
+
+        weekly_embed.add_field(
+            name="💰 Coins Earned This Week",
+            value=f"{total_coins_earned} <a:NovaCoins:1340334508838490223>",
+            inline=True,
+        )
+
+        weekly_embed.add_field(
+            name="🎯 Weekly Goal",
+            value=f"{weekly_count}/{weekly_target} tasks",
+            inline=True,
+        )
+
+        await ctx.respond(embed=weekly_embed)
 
     async def leaderboard_command(self, ctx: discord.ApplicationContext):
         """Get the accountability leaderboard."""
@@ -508,8 +586,8 @@ class AccountabilityCommands:
         user_id = ctx.author.id
         
         
-        self.cursor.execute("SELECT name, description, price FROM store_items WHERE id = ? AND is_active = 1", (item_id,))
-        item = self.cursor.fetchone()
+        self.db.cursor.execute("SELECT name, description, price FROM store_items WHERE id = ? AND is_active = 1", (item_id,))
+        item = self.db.cursor.fetchone()
         
         if not item:
             await ctx.respond("❌ Invalid item ID or the item is no longer available.", ephemeral=True)
@@ -855,10 +933,12 @@ class AccountabilityCommands:
                 if not user:
                     continue
                 
+                user_stats = self.db.get_user_stats(user_id)
+                streak = user_stats[1] if user_stats else 0
                 
                 embed = discord.Embed(
                     title="📝 Time to Log Your Completed Tasks!",
-                    description="Have you completed any tasks today? Take a moment to log them and build your accountability streak!",
+                    description=f"Have you completed any tasks today? Take a moment to log them and build your accountability streak! Your current streak: **{streak} days**.",
                     color=0xAAB99A,
                 )
                 
