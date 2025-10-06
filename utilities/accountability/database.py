@@ -374,3 +374,16 @@ class AccountabilityDB:
     def close(self):
         """Close the database connection."""
         self.conn.close()
+    
+    def get_weekly_logs(self, user_id):
+        """Get all tasks logged by a user in the current week."""
+        
+        today = datetime.now(timezone.utc).date()
+        start_of_week = today - timedelta(days=today.weekday())
+        
+        self.cursor.execute(
+            "SELECT task, logged_date, logged_time, reward FROM accountability_logs WHERE user_id = ? AND date(logged_date) >= date(?) ORDER BY logged_time DESC",
+            (user_id, start_of_week),
+        )
+        
+        return self.cursor.fetchall()
