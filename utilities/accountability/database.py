@@ -125,8 +125,8 @@ class AccountabilityDB:
     def create_user(self, user_id, novacoins, streak, last_logged):
         """Create a new user in the database."""
         self.cursor.execute(
-            "INSERT INTO accountability (user_id, novacoins, streak, last_logged, highest_streak, total_tasks) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (user_id, novacoins, streak, last_logged, streak, 0, 0),
+            "INSERT INTO accountability (user_id, novacoins, streak, last_logged, highest_streak, total_tasks) VALUES (?, ?, ?, ?, ?, ?)",
+            (user_id, novacoins, streak, last_logged, streak, 0),
         )
         self.conn.commit()
 
