@@ -113,6 +113,28 @@ class LinksSyncCog(commands.Cog):
     async def before_sync(self):
         await self.bot.wait_until_ready()
 
+    @commands.slash_command(
+        name="synclinks", description="Manually sync links.json to GitHub"
+    )
+    @commands.has_permissions(administrator=True)
+    async def sync_now(self, ctx: discord.ApplicationContext):
+        await ctx.defer()
+        current_hash = self._get_file_hash()
+        if current_hash is None:
+            await ctx.followup.send("❌ links.json not found")
+            return
+
+        pushed = self._git_push()
+        self.last_sync_time = datetime.datetime.now()
+        self.last_push_time = datetime.datetime.now()
+        self.last_push_success = pushed
+        self._last_hash = current_hash
+
+        if pushed:
+            await ctx.followup.send("✅ Successfully pushed links.json to GitHub")
+        else:
+            await ctx.followup.send("ℹ️ No changes to push or push failed")
+
 
 def setup(bot: discord.Bot):
     bot.add_cog(LinksSyncCog(bot))
