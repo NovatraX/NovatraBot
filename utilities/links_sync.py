@@ -27,16 +27,10 @@ class LinksSyncCog(commands.Cog):
         with open(LINKS_JSON_PATH, "rb") as f:
             return hashlib.md5(f.read()).hexdigest()
 
-    def _git_push(self) -> bool:
+    def _git_push(self) -> tuple[bool, str]:
         github_pat = os.getenv("GITHUB_PAT")
         if not github_pat:
-            print("[LinkSync] GITHUB_PAT not set")
-            return False
-
-        env = os.environ.copy()
-        env["GIT_ASKPASS"] = "echo"
-        env["GIT_USERNAME"] = "x-access-token"
-        env["GIT_PASSWORD"] = github_pat
+            return False, "GITHUB_PAT not set"
 
         try:
             subprocess.run(
@@ -45,14 +39,15 @@ class LinksSyncCog(commands.Cog):
                 check=True,
                 capture_output=True,
             )
-            result = subprocess.run(
-                ["git", "status", "--porcelain", LINKS_JSON_PATH],
+
+            diff_result = subprocess.run(
+                ["git", "diff", "--cached", "--name-only"],
                 cwd=os.getcwd(),
                 capture_output=True,
                 text=True,
             )
-            if not result.stdout.strip():
-                return False
+            if LINKS_JSON_PATH not in diff_result.stdout:
+                return False, "No changes staged"
 
             subprocess.run(
                 ["git", "commit", "-m", "chore: update links.json"],
@@ -69,26 +64,33 @@ class LinksSyncCog(commands.Cog):
             ).stdout.strip()
 
             if remote_url.startswith("https://"):
-                auth_url = remote_url.replace(
-                    "https://", f"https://x-access-token:{github_pat}@"
-                )
-                subprocess.run(
-                    ["git", "push", auth_url],
+                if "@" in remote_url:
+                    auth_url = remote_url
+                else:
+                    auth_url = remote_url.replace(
+                        "https://", f"https://x-access-token:{github_pat}@"
+                    )
+                result = subprocess.run(
+                    ["git", "push", auth_url, "HEAD"],
                     cwd=os.getcwd(),
-                    check=True,
                     capture_output=True,
+                    text=True,
                 )
+                if result.returncode != 0:
+                    return False, f"Push failed: {result.stderr}"
             else:
-                subprocess.run(
+                result = subprocess.run(
                     ["git", "push"],
                     cwd=os.getcwd(),
-                    check=True,
                     capture_output=True,
-                    env=env,
+                    text=True,
                 )
-            return True
-        except subprocess.CalledProcessError:
-            return False
+                if result.returncode != 0:
+                    return False, f"Push failed: {result.stderr}"
+
+            return True, "Success"
+        except subprocess.CalledProcessError as e:
+            return False, f"Git error: {e.stderr.decode() if e.stderr else str(e)}"
 
     @tasks.loop(minutes=30)
     async def sync_links(self):
@@ -102,11 +104,13 @@ class LinksSyncCog(commands.Cog):
             return
 
         if current_hash != self._last_hash:
-            pushed = self._git_push()
+            pushed, msg = self._git_push()
             self.last_push_time = datetime.datetime.now()
             self.last_push_success = pushed
             if pushed:
                 print("[LinkSync] Pushed updated links.json to GitHub")
+            else:
+                print(f"[LinkSync] Push failed: {msg}")
             self._last_hash = current_hash
 
     @sync_links.before_loop
@@ -124,7 +128,7 @@ class LinksSyncCog(commands.Cog):
             await ctx.followup.send("❌ links.json not found")
             return
 
-        pushed = self._git_push()
+        pushed, msg = self._git_push()
         self.last_sync_time = datetime.datetime.now()
         self.last_push_time = datetime.datetime.now()
         self.last_push_success = pushed
@@ -133,7 +137,7 @@ class LinksSyncCog(commands.Cog):
         if pushed:
             await ctx.followup.send("✅ Successfully pushed links.json to GitHub")
         else:
-            await ctx.followup.send("ℹ️ No changes to push or push failed")
+            await ctx.followup.send(f"❌ {msg}")
 
 
 def setup(bot: discord.Bot):
