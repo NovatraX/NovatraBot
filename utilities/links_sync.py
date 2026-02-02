@@ -63,18 +63,22 @@ class LinksSyncCog(commands.Cog):
                 text=True,
             ).stdout.strip()
 
+            env = os.environ.copy()
+            env["GIT_TERMINAL_PROMPT"] = "0"
+            env["GIT_ASKPASS"] = ""
+            env["GIT_CREDENTIAL_HELPER"] = ""
+
             if remote_url.startswith("https://"):
-                if "@" in remote_url:
-                    auth_url = remote_url
-                else:
-                    auth_url = remote_url.replace(
-                        "https://", f"https://x-access-token:{github_pat}@"
-                    )
+                parts = remote_url.replace("https://", "").split("/")
+                repo_path = "/".join(parts[-2:]) if len(parts) >= 2 else remote_url
+                auth_url = f"https://x-access-token:{github_pat}@github.com/{repo_path}"
+
                 result = subprocess.run(
                     ["git", "push", auth_url, "HEAD"],
                     cwd=os.getcwd(),
                     capture_output=True,
                     text=True,
+                    env=env,
                 )
                 if result.returncode != 0:
                     return False, f"Push failed: {result.stderr}"
@@ -84,6 +88,7 @@ class LinksSyncCog(commands.Cog):
                     cwd=os.getcwd(),
                     capture_output=True,
                     text=True,
+                    env=env,
                 )
                 if result.returncode != 0:
                     return False, f"Push failed: {result.stderr}"
