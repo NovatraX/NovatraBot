@@ -12,12 +12,6 @@ LINK_FIXERS = [
     },
     {
         "pattern": re.compile(
-            r"https?://(?:www\.)?(?:youtube\.com|youtu\.be)/(\S+)", re.IGNORECASE
-        ),
-        "replacement": "https://yewtu.be/{path}",
-    },
-    {
-        "pattern": re.compile(
             r"https?://(?:www\.)?instagram\.com/((?:p|reels?|stories|share)/\S+|\w+/p/\S+)",
             re.IGNORECASE,
         ),
