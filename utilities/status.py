@@ -1,9 +1,13 @@
 import datetime
+import json
+import os
 import platform
 
 import discord
 import psutil
 from discord.ext import commands, tasks
+
+LINKS_JSON_PATH = "data/links.json"
 
 
 class StatusCog(commands.Cog):
@@ -68,6 +72,38 @@ class StatusCog(commands.Cog):
 
         return color * filled + "⬜" * empty
 
+    def get_links_info(self):
+        if not os.path.exists(LINKS_JSON_PATH):
+            return {"exists": False}
+
+        try:
+            stat = os.stat(LINKS_JSON_PATH)
+            with open(LINKS_JSON_PATH, "r", encoding="utf-8") as f:
+                data = json.load(f)
+
+            links = data.get("links", [])
+            categories = {}
+            for link in links:
+                cat = link.get("category") or "uncategorized"
+                categories[cat] = categories.get(cat, 0) + 1
+
+            return {
+                "exists": True,
+                "count": len(links),
+                "size": stat.st_size,
+                "modified": datetime.datetime.fromtimestamp(stat.st_mtime),
+                "categories": categories,
+            }
+        except Exception:
+            return {"exists": False}
+
+    def get_services_info(self):
+        return {
+            "openrouter_configured": bool(os.getenv("OPENROUTER_API_KEY")),
+            "openrouter_model": os.getenv("OPENROUTER_MODEL", "openai/gpt-4o-mini"),
+            "github_pat_configured": bool(os.getenv("GITHUB_PAT")),
+        }
+
     async def create_status_embed(self):
         info = self.get_system_info()
 
@@ -121,6 +157,55 @@ class StatusCog(commands.Cog):
             name="🌐 Network",
             value=f"Sent : {self.format_bytes(info['net_io'].bytes_sent)}\n"
             f"Received : {self.format_bytes(info['net_io'].bytes_recv)}",
+            inline=False,
+        )
+
+        links_info = self.get_links_info()
+        services_info = self.get_services_info()
+
+        sync_cog = self.bot.get_cog("LinksSyncCog")
+        sync_status = "⏳ Pending"
+        if sync_cog and sync_cog.last_push_time:
+            if sync_cog.last_push_success:
+                sync_status = f"✅ {sync_cog.last_push_time.strftime('%H:%M')}"
+            else:
+                sync_status = f"❌ {sync_cog.last_push_time.strftime('%H:%M')}"
+
+        if links_info.get("exists"):
+            top_cats = sorted(
+                links_info["categories"].items(), key=lambda x: x[1], reverse=True
+            )[:3]
+            cats_str = (
+                ", ".join(f"{k}: {v}" for k, v in top_cats) if top_cats else "None"
+            )
+            last_mod = links_info["modified"].strftime("%Y-%m-%d %H:%M")
+            embed.add_field(
+                name="🔗 Links Database",
+                value=f"**Total** : {links_info['count']} links\n"
+                f"Size : {self.format_bytes(links_info['size'])}\n"
+                f"Modified : {last_mod}\n"
+                f"Top : {cats_str}\n"
+                f"Sync : {sync_status}",
+                inline=False,
+            )
+        else:
+            embed.add_field(
+                name="🔗 Links Database",
+                value="❌ Not found",
+                inline=False,
+            )
+
+        openrouter_status = (
+            "✅ Configured" if services_info["openrouter_configured"] else "❌ Not set"
+        )
+        github_status = (
+            "✅ Configured" if services_info["github_pat_configured"] else "❌ Not set"
+        )
+        embed.add_field(
+            name="⚙️ Services",
+            value=f"**OpenRouter** : {openrouter_status}\n"
+            f"Model : `{services_info['openrouter_model']}`\n"
+            f"**GitHub PAT** : {github_status}",
             inline=False,
         )
 
