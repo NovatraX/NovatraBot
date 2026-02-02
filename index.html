@@ -1,224 +1,312 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Saved Links</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-      background: #0d1117;
-      color: #c9d1d9;
-      min-height: 100vh;
-      padding: 2rem;
-    }
-    .container { max-width: 900px; margin: 0 auto; }
-    h1 { color: #58a6ff; margin-bottom: 1.5rem; font-size: 1.8rem; }
-    .search-bar {
-      display: flex;
-      gap: 1rem;
-      margin-bottom: 2rem;
-      flex-wrap: wrap;
-    }
-    .search-bar input, .search-bar select {
-      background: #161b22;
-      border: 1px solid #30363d;
-      color: #c9d1d9;
-      padding: 0.75rem 1rem;
-      border-radius: 6px;
-      font-size: 1rem;
-    }
-    .search-bar input { flex: 1; min-width: 200px; }
-    .search-bar input:focus, .search-bar select:focus {
-      outline: none;
-      border-color: #58a6ff;
-    }
-    .stats {
-      color: #8b949e;
-      margin-bottom: 1rem;
-      font-size: 0.9rem;
-    }
-    .links-grid { display: flex; flex-direction: column; gap: 1rem; }
-    .link-card {
-      background: #161b22;
-      border: 1px solid #30363d;
-      border-radius: 8px;
-      padding: 1.25rem;
-      transition: border-color 0.2s;
-    }
-    .link-card:hover { border-color: #58a6ff; }
-    .link-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      gap: 1rem;
-      margin-bottom: 0.75rem;
-    }
-    .link-title {
-      font-size: 1.1rem;
-      font-weight: 600;
-      color: #58a6ff;
-      text-decoration: none;
-      word-break: break-word;
-    }
-    .link-title:hover { text-decoration: underline; }
-    .link-category {
-      background: #21262d;
-      color: #8b949e;
-      padding: 0.25rem 0.6rem;
-      border-radius: 20px;
-      font-size: 0.75rem;
-      text-transform: capitalize;
-      white-space: nowrap;
-    }
-    .link-category.code { background: #238636; color: #fff; }
-    .link-category.documentation { background: #1f6feb; color: #fff; }
-    .link-category.video { background: #da3633; color: #fff; }
-    .link-category.article { background: #a371f7; color: #fff; }
-    .link-category.social { background: #1d9bf0; color: #fff; }
-    .link-category.news { background: #f78166; color: #fff; }
-    .link-category.tool { background: #3fb950; color: #fff; }
-    .link-category.design { background: #db61a2; color: #fff; }
-    .link-category.learning { background: #f0883e; color: #fff; }
-    .link-url {
-      color: #8b949e;
-      font-size: 0.85rem;
-      margin-bottom: 0.5rem;
-      word-break: break-all;
-    }
-    .link-context {
-      color: #c9d1d9;
-      font-size: 0.95rem;
-      line-height: 1.5;
-      margin-bottom: 0.75rem;
-    }
-    .link-meta {
-      display: flex;
-      gap: 1rem;
-      font-size: 0.8rem;
-      color: #6e7681;
-      flex-wrap: wrap;
-    }
-    .link-meta a {
-      color: #58a6ff;
-      text-decoration: none;
-    }
-    .link-meta a:hover { text-decoration: underline; }
-    .no-results {
-      text-align: center;
-      color: #8b949e;
-      padding: 3rem;
-      font-size: 1.1rem;
-    }
-    .domain-badge {
-      background: #30363d;
-      color: #8b949e;
-      padding: 0.2rem 0.5rem;
-      border-radius: 4px;
-      font-size: 0.75rem;
-    }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <h1>📎 Saved Links</h1>
-    <div class="search-bar">
-      <input type="text" id="search" placeholder="Search links...">
-      <select id="category-filter">
-        <option value="">All Categories</option>
-        <option value="code">Code</option>
-        <option value="documentation">Documentation</option>
-        <option value="video">Video</option>
-        <option value="article">Article</option>
-        <option value="social">Social</option>
-        <option value="news">News</option>
-        <option value="tool">Tool</option>
-        <option value="design">Design</option>
-        <option value="learning">Learning</option>
-        <option value="other">Other</option>
-      </select>
-    </div>
-    <div class="stats" id="stats"></div>
-    <div class="links-grid" id="links"></div>
-  </div>
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Saved Links</title>
+        <style>
+            * {
+                box-sizing: border-box;
+                margin: 0;
+                padding: 0;
+            }
+            body {
+                font-family:
+                    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                    Oxygen, Ubuntu, sans-serif;
+                background: #0d1117;
+                color: #c9d1d9;
+                min-height: 100vh;
+                padding: 2rem;
+            }
+            .container {
+                max-width: 900px;
+                margin: 0 auto;
+            }
+            h1 {
+                color: #58a6ff;
+                margin-bottom: 1.5rem;
+                font-size: 1.8rem;
+            }
+            .search-bar {
+                display: flex;
+                gap: 1rem;
+                margin-bottom: 2rem;
+                flex-wrap: wrap;
+            }
+            .search-bar input,
+            .search-bar select {
+                background: #161b22;
+                border: 1px solid #30363d;
+                color: #c9d1d9;
+                padding: 0.75rem 1rem;
+                border-radius: 6px;
+                font-size: 1rem;
+            }
+            .search-bar input {
+                flex: 1;
+                min-width: 200px;
+            }
+            .search-bar input:focus,
+            .search-bar select:focus {
+                outline: none;
+                border-color: #58a6ff;
+            }
+            .stats {
+                color: #8b949e;
+                margin-bottom: 1rem;
+                font-size: 0.9rem;
+            }
+            .links-grid {
+                display: flex;
+                flex-direction: column;
+                gap: 1rem;
+            }
+            .link-card {
+                background: #161b22;
+                border: 1px solid #30363d;
+                border-radius: 8px;
+                padding: 1.25rem;
+                transition: border-color 0.2s;
+            }
+            .link-card:hover {
+                border-color: #58a6ff;
+            }
+            .link-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: flex-start;
+                gap: 1rem;
+                margin-bottom: 0.75rem;
+            }
+            .link-title {
+                font-size: 1.1rem;
+                font-weight: 600;
+                color: #58a6ff;
+                text-decoration: none;
+                word-break: break-word;
+            }
+            .link-title:hover {
+                text-decoration: underline;
+            }
+            .link-category {
+                background: #21262d;
+                color: #8b949e;
+                padding: 0.25rem 0.6rem;
+                border-radius: 20px;
+                font-size: 0.75rem;
+                text-transform: capitalize;
+                white-space: nowrap;
+            }
+            .link-category.code {
+                background: #238636;
+                color: #fff;
+            }
+            .link-category.documentation {
+                background: #1f6feb;
+                color: #fff;
+            }
+            .link-category.video {
+                background: #da3633;
+                color: #fff;
+            }
+            .link-category.article {
+                background: #a371f7;
+                color: #fff;
+            }
+            .link-category.social {
+                background: #1d9bf0;
+                color: #fff;
+            }
+            .link-category.news {
+                background: #f78166;
+                color: #fff;
+            }
+            .link-category.tool {
+                background: #3fb950;
+                color: #fff;
+            }
+            .link-category.design {
+                background: #db61a2;
+                color: #fff;
+            }
+            .link-category.learning {
+                background: #f0883e;
+                color: #fff;
+            }
+            .link-url {
+                color: #8b949e;
+                font-size: 0.85rem;
+                margin-bottom: 0.5rem;
+                word-break: break-all;
+            }
+            .link-context {
+                color: #c9d1d9;
+                font-size: 0.95rem;
+                line-height: 1.5;
+                margin-bottom: 0.75rem;
+            }
+            .link-meta {
+                display: flex;
+                gap: 1rem;
+                font-size: 0.8rem;
+                color: #6e7681;
+                flex-wrap: wrap;
+            }
+            .link-meta a {
+                color: #58a6ff;
+                text-decoration: none;
+            }
+            .link-meta a:hover {
+                text-decoration: underline;
+            }
+            .no-results {
+                text-align: center;
+                color: #8b949e;
+                padding: 3rem;
+                font-size: 1.1rem;
+            }
+            .domain-badge {
+                background: #30363d;
+                color: #8b949e;
+                padding: 0.2rem 0.5rem;
+                border-radius: 4px;
+                font-size: 0.75rem;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>📎 Saved Links</h1>
+            <div class="search-bar">
+                <input type="text" id="search" placeholder="Search links..." />
+                <select id="category-filter">
+                    <option value="">All Categories</option>
+                    <option value="code">Code</option>
+                    <option value="documentation">Documentation</option>
+                    <option value="video">Video</option>
+                    <option value="article">Article</option>
+                    <option value="social">Social</option>
+                    <option value="news">News</option>
+                    <option value="tool">Tool</option>
+                    <option value="design">Design</option>
+                    <option value="learning">Learning</option>
+                    <option value="other">Other</option>
+                </select>
+            </div>
+            <div class="stats" id="stats"></div>
+            <div class="links-grid" id="links"></div>
+        </div>
 
-  <script>
-    let allLinks = [];
+        <script>
+            let allLinks = [];
 
-    async function loadLinks() {
-      try {
-        const res = await fetch('links.json');
-        const data = await res.json();
-        allLinks = data.links.sort((a, b) => 
-          new Date(b.created_at) - new Date(a.created_at)
-        );
-        render();
-      } catch (e) {
-        document.getElementById('links').innerHTML = 
-          '<div class="no-results">Failed to load links.json</div>';
-      }
-    }
+            async function loadLinks() {
+                try {
+                    const res = await fetch("data/links.json");
+                    const data = await res.json();
+                    allLinks = data.links.sort(
+                        (a, b) =>
+                            new Date(b.created_at) - new Date(a.created_at),
+                    );
+                    render();
+                } catch (e) {
+                    document.getElementById("links").innerHTML =
+                        '<div class="no-results">Failed to load links.json</div>';
+                }
+            }
 
-    function render() {
-      const query = document.getElementById('search').value.toLowerCase();
-      const category = document.getElementById('category-filter').value;
+            function render() {
+                const query = document
+                    .getElementById("search")
+                    .value.toLowerCase();
+                const category =
+                    document.getElementById("category-filter").value;
 
-      const filtered = allLinks.filter(link => {
-        if (category && link.category !== category) return false;
-        if (!query) return true;
-        const searchable = [
-          link.url, link.title, link.description, 
-          link.context, link.domain, link.site_name
-        ].filter(Boolean).join(' ').toLowerCase();
-        return searchable.includes(query);
-      });
+                const filtered = allLinks.filter((link) => {
+                    if (category && link.category !== category) return false;
+                    if (!query) return true;
+                    const searchable = [
+                        link.url,
+                        link.title,
+                        link.description,
+                        link.context,
+                        link.domain,
+                        link.site_name,
+                    ]
+                        .filter(Boolean)
+                        .join(" ")
+                        .toLowerCase();
+                    return searchable.includes(query);
+                });
 
-      document.getElementById('stats').textContent = 
-        `Showing ${filtered.length} of ${allLinks.length} links`;
+                document.getElementById("stats").textContent =
+                    `Showing ${filtered.length} of ${allLinks.length} links`;
 
-      if (filtered.length === 0) {
-        document.getElementById('links').innerHTML = 
-          '<div class="no-results">No links found</div>';
-        return;
-      }
+                if (filtered.length === 0) {
+                    document.getElementById("links").innerHTML =
+                        '<div class="no-results">No links found</div>';
+                    return;
+                }
 
-      document.getElementById('links').innerHTML = filtered.map(link => {
-        const title = link.title || link.site_name || link.domain || link.url;
-        const date = new Date(link.created_at).toLocaleDateString('en-US', {
-          year: 'numeric', month: 'short', day: 'numeric'
-        });
-        const categoryClass = link.category ? `link-category ${link.category}` : 'link-category';
-        
-        return `
+                document.getElementById("links").innerHTML = filtered
+                    .map((link) => {
+                        const title =
+                            link.title ||
+                            link.site_name ||
+                            link.domain ||
+                            link.url;
+                        const date = new Date(
+                            link.created_at,
+                        ).toLocaleDateString("en-US", {
+                            year: "numeric",
+                            month: "short",
+                            day: "numeric",
+                        });
+                        const categoryClass = link.category
+                            ? `link-category ${link.category}`
+                            : "link-category";
+
+                        return `
           <div class="link-card">
             <div class="link-header">
               <a href="${link.url}" target="_blank" rel="noopener" class="link-title">${escapeHtml(title)}</a>
-              ${link.category ? `<span class="${categoryClass}">${link.category}</span>` : ''}
+              ${link.category ? `<span class="${categoryClass}">${link.category}</span>` : ""}
             </div>
             <div class="link-url">${escapeHtml(link.url)}</div>
-            ${link.context ? `<div class="link-context">💡 ${escapeHtml(link.context)}</div>` : ''}
-            ${link.description && !link.context ? `<div class="link-context">${escapeHtml(link.description)}</div>` : ''}
+            ${link.context ? `<div class="link-context">💡 ${escapeHtml(link.context)}</div>` : ""}
+            ${link.description && !link.context ? `<div class="link-context">${escapeHtml(link.description)}</div>` : ""}
             <div class="link-meta">
-              <span class="domain-badge">${link.domain || 'unknown'}</span>
+              <span class="domain-badge">${link.domain || "unknown"}</span>
               <span>📅 ${date}</span>
               <a href="${link.message_link}" target="_blank" rel="noopener">Discord Message</a>
             </div>
           </div>
         `;
-      }).join('');
-    }
+                    })
+                    .join("");
+            }
 
-    function escapeHtml(str) {
-      if (!str) return '';
-      return str.replace(/[&<>"']/g, c => ({
-        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-      })[c]);
-    }
+            function escapeHtml(str) {
+                if (!str) return "";
+                return str.replace(
+                    /[&<>"']/g,
+                    (c) =>
+                        ({
+                            "&": "&amp;",
+                            "<": "&lt;",
+                            ">": "&gt;",
+                            '"': "&quot;",
+                            "'": "&#39;",
+                        })[c],
+                );
+            }
 
-    document.getElementById('search').addEventListener('input', render);
-    document.getElementById('category-filter').addEventListener('change', render);
-    loadLinks();
-  </script>
-</body>
+            document.getElementById("search").addEventListener("input", render);
+            document
+                .getElementById("category-filter")
+                .addEventListener("change", render);
+            loadLinks();
+        </script>
+    </body>
 </html>
