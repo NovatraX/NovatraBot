@@ -1,15 +1,17 @@
+import base64
 import datetime
 import hashlib
 import os
-import shutil
-import subprocess
 
+import aiohttp
 import discord
 from discord.ext import commands, tasks
 
+GITHUB_REPO = "links"
+GITHUB_OWNER = "NovatraX"
+GITHUB_FILE_PATH = "links.json"
 LINKS_JSON_PATH = "data/links.json"
-LINKS_REPO_DIR = "data/links-repo"
-LINKS_REPO_URL = "github.com/NovatraX/links.git"
+GITHUB_API_URL = f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}/contents/{GITHUB_FILE_PATH}"
 
 
 class LinksSyncCog(commands.Cog):
@@ -30,92 +32,58 @@ class LinksSyncCog(commands.Cog):
         with open(LINKS_JSON_PATH, "rb") as f:
             return hashlib.md5(f.read()).hexdigest()
 
-    def _ensure_repo(self, github_pat: str) -> tuple[bool, str]:
-        auth_url = f"https://x-access-token:{github_pat}@{LINKS_REPO_URL}"
-        env = self._git_env()
+    async def _get_remote_sha(
+        self, session: aiohttp.ClientSession, headers: dict
+    ) -> str | None:
+        try:
+            async with session.get(GITHUB_API_URL, headers=headers) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    return data.get("sha")
+                return None
+        except aiohttp.ClientError:
+            return None
 
-        if os.path.exists(LINKS_REPO_DIR):
-            result = subprocess.run(
-                ["git", "pull", "--rebase"],
-                cwd=LINKS_REPO_DIR,
-                capture_output=True,
-                text=True,
-                env=env,
-            )
-            if result.returncode != 0:
-                shutil.rmtree(LINKS_REPO_DIR, ignore_errors=True)
-            else:
-                return True, "Repo updated"
-
-        os.makedirs(os.path.dirname(LINKS_REPO_DIR), exist_ok=True)
-        result = subprocess.run(
-            ["git", "clone", auth_url, LINKS_REPO_DIR],
-            capture_output=True,
-            text=True,
-            env=env,
-        )
-        if result.returncode != 0:
-            return False, f"Clone failed: {result.stderr}"
-        return True, "Repo cloned"
-
-    def _git_env(self) -> dict:
-        env = os.environ.copy()
-        env["GIT_TERMINAL_PROMPT"] = "0"
-        env["GIT_ASKPASS"] = ""
-        env["GIT_CREDENTIAL_HELPER"] = ""
-        return env
-
-    def _git_push(self) -> tuple[bool, str]:
+    async def _github_push(self) -> tuple[bool, str]:
         github_pat = os.getenv("GITHUB_PAT")
         if not github_pat:
             return False, "GITHUB_PAT not set"
 
-        ok, msg = self._ensure_repo(github_pat)
-        if not ok:
-            return False, msg
+        if not os.path.exists(LINKS_JSON_PATH):
+            return False, "links.json not found"
 
-        shutil.copy(LINKS_JSON_PATH, os.path.join(LINKS_REPO_DIR, "links.json"))
+        with open(LINKS_JSON_PATH, "rb") as f:
+            content = f.read()
 
-        env = self._git_env()
+        encoded_content = base64.b64encode(content).decode("utf-8")
 
-        try:
-            subprocess.run(
-                ["git", "add", "links.json"],
-                cwd=LINKS_REPO_DIR,
-                check=True,
-                capture_output=True,
-            )
+        headers = {
+            "Authorization": f"Bearer {github_pat}",
+            "Accept": "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28",
+        }
 
-            diff_result = subprocess.run(
-                ["git", "diff", "--cached", "--name-only"],
-                cwd=LINKS_REPO_DIR,
-                capture_output=True,
-                text=True,
-            )
-            if "links.json" not in diff_result.stdout:
-                return False, "No changes to push"
+        async with aiohttp.ClientSession() as session:
+            remote_sha = await self._get_remote_sha(session, headers)
 
-            subprocess.run(
-                ["git", "commit", "-m", "chore: update links.json"],
-                cwd=LINKS_REPO_DIR,
-                check=True,
-                capture_output=True,
-            )
+            payload: dict = {
+                "message": "chore: update links.json",
+                "content": encoded_content,
+            }
+            if remote_sha:
+                payload["sha"] = remote_sha
 
-            auth_url = f"https://x-access-token:{github_pat}@{LINKS_REPO_URL}"
-            result = subprocess.run(
-                ["git", "push", auth_url, "HEAD"],
-                cwd=LINKS_REPO_DIR,
-                capture_output=True,
-                text=True,
-                env=env,
-            )
-            if result.returncode != 0:
-                return False, f"Push failed: {result.stderr}"
-
-            return True, "Success"
-        except subprocess.CalledProcessError as e:
-            return False, f"Git error: {e.stderr.decode() if e.stderr else str(e)}"
+            try:
+                async with session.put(
+                    GITHUB_API_URL, headers=headers, json=payload
+                ) as resp:
+                    if resp.status in (200, 201):
+                        return True, "Success"
+                    error_data = await resp.json()
+                    error_msg = error_data.get("message", "Unknown error")
+                    return False, f"Push failed: {error_msg}"
+            except aiohttp.ClientError as e:
+                return False, f"Request failed: {e}"
 
     @tasks.loop(minutes=30)
     async def sync_links(self):
@@ -129,7 +97,7 @@ class LinksSyncCog(commands.Cog):
             return
 
         if current_hash != self._last_hash:
-            pushed, msg = self._git_push()
+            pushed, msg = await self._github_push()
             self.last_push_time = datetime.datetime.now()
             self.last_push_success = pushed
             if pushed:
@@ -153,7 +121,7 @@ class LinksSyncCog(commands.Cog):
             await ctx.followup.send("❌ links.json not found")
             return
 
-        pushed, msg = self._git_push()
+        pushed, msg = await self._github_push()
         self.last_sync_time = datetime.datetime.now()
         self.last_push_time = datetime.datetime.now()
         self.last_push_success = pushed
