@@ -71,7 +71,25 @@
       "category_id": 1295622870981939248,
       "author_id": 600391842315632642,
       "created_at": "2026-02-02T17:32:24.208016"
+    },
+    {
+      "id": 5,
+      "url": "https://novatrax.github.io/NovatraBot/",
+      "normalized_url": "https://novatrax.github.io/NovatraBot/",
+      "domain": "novatrax.github.io",
+      "title": "Saved Links",
+      "description": null,
+      "site_name": null,
+      "image_url": null,
+      "context": "This link points to the GitHub repository for NovatraBot, a project likely involving automation or bot functionality. It's useful for developers interested in exploring open-source code and potentially adapting or contributing to the bot.",
+      "category": "code",
+      "message_id": 1467943075468017852,
+      "message_link": "https://discord.com/channels/1295622870981939243/1295745640621539411/1467943075468017852",
+      "channel_id": 1295745640621539411,
+      "category_id": 1295622870981939248,
+      "author_id": 727012870683885578,
+      "created_at": "2026-02-02T18:01:42.432795"
     }
   ],
-  "next_id": 5
+  "next_id": 6
 }
