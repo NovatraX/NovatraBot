@@ -1,115 +1,65 @@
-import sqlite3
+import json
+import os
+from datetime import datetime
 from typing import Dict, List, Optional
 
 
 class LinkDatabase:
-    def __init__(self, db_path: str = "data/links.db"):
+    def __init__(self, db_path: str = "data/links.json"):
         self.db_path = db_path
-        self.init_db()
+        self._ensure_file()
 
-    def _get_conn(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
-        return conn
+    def _ensure_file(self):
+        if not os.path.exists(self.db_path):
+            self._save_data({"links": [], "next_id": 1})
 
-    def _ensure_columns(
-        self, conn: sqlite3.Connection, table: str, columns: Dict[str, str]
-    ):
-        existing = {
-            row["name"]
-            for row in conn.execute(f"PRAGMA table_info({table})").fetchall()
-        }
-        for name, ddl in columns.items():
-            if name not in existing:
-                conn.execute(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}")
+    def _load_data(self) -> Dict:
+        try:
+            with open(self.db_path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except (json.JSONDecodeError, FileNotFoundError):
+            return {"links": [], "next_id": 1}
 
-    def init_db(self):
-        with self._get_conn() as conn:
-            conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS saved_links (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    url TEXT NOT NULL,
-                    normalized_url TEXT,
-                    domain TEXT,
-                    title TEXT,
-                    description TEXT,
-                    site_name TEXT,
-                    image_url TEXT,
-                    message_id INTEGER NOT NULL,
-                    message_link TEXT NOT NULL,
-                    channel_id INTEGER NOT NULL,
-                    category_id INTEGER NOT NULL,
-                    author_id INTEGER NOT NULL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-                """
-            )
-
-            self._ensure_columns(
-                conn,
-                "saved_links",
-                {
-                    "normalized_url": "TEXT",
-                    "domain": "TEXT",
-                    "title": "TEXT",
-                    "description": "TEXT",
-                    "site_name": "TEXT",
-                    "image_url": "TEXT",
-                    "category": "TEXT",
-                    "created_at": "TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
-                },
-            )
-
-            conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_links_category_type ON saved_links(category)"
-            )
-
-            conn.execute(
-                "CREATE UNIQUE INDEX IF NOT EXISTS idx_links_message_url ON saved_links(message_id, url)"
-            )
-            conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_links_created ON saved_links(created_at)"
-            )
-            conn.execute(
-                "CREATE INDEX IF NOT EXISTS idx_links_category ON saved_links(category_id)"
-            )
-            conn.commit()
+    def _save_data(self, data: Dict):
+        os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
+        with open(self.db_path, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
 
     def save_links(self, links: List[Dict]) -> List[Dict]:
         saved = []
-        with self._get_conn() as conn:
-            for link in links:
-                try:
-                    cursor = conn.execute(
-                        """
-                        INSERT OR IGNORE INTO saved_links (
-                            url,
-                            normalized_url,
-                            domain,
-                            message_id,
-                            message_link,
-                            channel_id,
-                            category_id,
-                            author_id
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                        """,
-                        (
-                            link["url"],
-                            link.get("normalized_url"),
-                            link.get("domain"),
-                            link["message_id"],
-                            link["message_link"],
-                            link["channel_id"],
-                            link["category_id"],
-                            link["author_id"],
-                        ),
-                    )
-                    if cursor.rowcount:
-                        saved.append({"id": cursor.lastrowid, "url": link["url"]})
-                except sqlite3.IntegrityError:
-                    continue
-            conn.commit()
+        data = self._load_data()
+
+        existing_keys = {(link["message_id"], link["url"]) for link in data["links"]}
+
+        for link in links:
+            key = (link["message_id"], link["url"])
+            if key in existing_keys:
+                continue
+
+            link_entry = {
+                "id": data["next_id"],
+                "url": link["url"],
+                "normalized_url": link.get("normalized_url"),
+                "domain": link.get("domain"),
+                "title": None,
+                "description": None,
+                "site_name": None,
+                "image_url": None,
+                "context": None,
+                "category": None,
+                "message_id": link["message_id"],
+                "message_link": link["message_link"],
+                "channel_id": link["channel_id"],
+                "category_id": link["category_id"],
+                "author_id": link["author_id"],
+                "created_at": datetime.utcnow().isoformat(),
+            }
+            data["links"].append(link_entry)
+            data["next_id"] += 1
+            saved.append({"id": link_entry["id"], "url": link["url"]})
+            existing_keys.add(key)
+
+        self._save_data(data)
         return saved
 
     def update_metadata(
@@ -120,17 +70,19 @@ class LinkDatabase:
         site_name: Optional[str],
         image_url: Optional[str],
         category: Optional[str] = None,
+        context: Optional[str] = None,
     ):
-        with self._get_conn() as conn:
-            conn.execute(
-                """
-                UPDATE saved_links
-                SET title = ?, description = ?, site_name = ?, image_url = ?, category = ?
-                WHERE id = ?
-                """,
-                (title, description, site_name, image_url, category, link_id),
-            )
-            conn.commit()
+        data = self._load_data()
+        for link in data["links"]:
+            if link["id"] == link_id:
+                link["title"] = title
+                link["description"] = description
+                link["site_name"] = site_name
+                link["image_url"] = image_url
+                link["category"] = category
+                link["context"] = context
+                break
+        self._save_data(data)
 
     def count_links(
         self,
@@ -139,13 +91,7 @@ class LinkDatabase:
         category_id: Optional[int] = None,
         category: Optional[str] = None,
     ) -> int:
-        where, params = self._build_filters(query, user_id, category_id, category)
-        sql = "SELECT COUNT(1) FROM saved_links"
-        if where:
-            sql += f" WHERE {where}"
-        with self._get_conn() as conn:
-            row = conn.execute(sql, params).fetchone()
-            return int(row[0]) if row else 0
+        return len(self._filter_links(query, user_id, category_id, category))
 
     def get_links(
         self,
@@ -156,63 +102,42 @@ class LinkDatabase:
         limit: int = 25,
         offset: int = 0,
     ) -> List[Dict]:
-        where, params = self._build_filters(query, user_id, category_id, category)
-        sql = (
-            "SELECT id, url, normalized_url, domain, title, description, site_name, image_url, "
-            "message_link, channel_id, author_id, created_at, category "
-            "FROM saved_links"
-        )
-        if where:
-            sql += f" WHERE {where}"
-        sql += " ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?"
-        params = params + [limit, offset]
+        filtered = self._filter_links(query, user_id, category_id, category)
+        filtered.sort(key=lambda x: (x.get("created_at") or "", x["id"]), reverse=True)
+        return filtered[offset : offset + limit]
 
-        with self._get_conn() as conn:
-            rows = conn.execute(sql, params).fetchall()
-        results = []
-        for row in rows:
-            results.append(
-                {
-                    "id": row["id"],
-                    "url": row["url"],
-                    "normalized_url": row["normalized_url"],
-                    "domain": row["domain"],
-                    "title": row["title"],
-                    "description": row["description"],
-                    "site_name": row["site_name"],
-                    "image_url": row["image_url"],
-                    "message_link": row["message_link"],
-                    "channel_id": row["channel_id"],
-                    "author_id": row["author_id"],
-                    "created_at": row["created_at"],
-                    "category": row["category"],
-                }
-            )
-        return results
-
-    def _build_filters(
+    def _filter_links(
         self,
         query: Optional[str],
         user_id: Optional[int],
         category_id: Optional[int],
-        category: Optional[str] = None,
-    ) -> tuple[str, List]:
-        filters = []
-        params: List = []
-        if query:
-            like = f"%{query}%"
-            filters.append(
-                "(url LIKE ? OR title LIKE ? OR description LIKE ? OR site_name LIKE ? OR domain LIKE ?)"
-            )
-            params.extend([like, like, like, like, like])
-        if user_id:
-            filters.append("author_id = ?")
-            params.append(user_id)
-        if category_id:
-            filters.append("category_id = ?")
-            params.append(category_id)
-        if category:
-            filters.append("category = ?")
-            params.append(category)
-        where = " AND ".join(filters)
-        return where, params
+        category: Optional[str],
+    ) -> List[Dict]:
+        data = self._load_data()
+        results = []
+
+        for link in data["links"]:
+            if user_id and link.get("author_id") != user_id:
+                continue
+            if category_id and link.get("category_id") != category_id:
+                continue
+            if category and link.get("category") != category:
+                continue
+            if query:
+                query_lower = query.lower()
+                searchable = " ".join(
+                    str(v or "").lower()
+                    for v in [
+                        link.get("url"),
+                        link.get("title"),
+                        link.get("description"),
+                        link.get("site_name"),
+                        link.get("domain"),
+                        link.get("context"),
+                    ]
+                )
+                if query_lower not in searchable:
+                    continue
+            results.append(link)
+
+        return results
