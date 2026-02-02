@@ -1,13 +1,14 @@
 import sqlite3
-import discord
+
 import aiohttp
+import discord
 from discord.ext import commands
 
 
 class ModerationCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.conn = sqlite3.connect("moderation.db")
+        self.conn = sqlite3.connect("data/moderation.db")
         self.cursor = self.conn.cursor()
         self.cursor.execute(
             """CREATE TABLE IF NOT EXISTS warnings (

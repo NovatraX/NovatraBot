@@ -117,8 +117,21 @@ The bot uses SQLite databases for data persistence:
 
 - `moderation.db` - Stores warning data and user violations
 - `accountability.db` - Tracks user tasks and progress
+- `tasks.db` - Stores AI-generated todo tasks
 
-### Permissions
+### Linear Integration
+
+Run `python3 get_linear_ids.py` to list IDs, then set these in `.env` to enable uploads:
+
+- `LINEAR_API_KEY`
+- `LINEAR_TEAM_ID`
+- `LINEAR_PROJECT_ID` (optional)
+- `LINEAR_STATE_TODO_ID`
+- `LINEAR_STATE_BACKLOG_ID`
+- `LINEAR_LABEL_URGENT_ID` (optional)
+- `LINEAR_LABEL_HIGH_PRIORITY_ID` (optional)
+- `LINEAR_LABEL_MEDIUM_PRIORITY_ID` (optional)
+- `LINEAR_LABEL_LOW_PRIORITY_ID` (optional)
 
 Ensure your bot has the following permissions:
 

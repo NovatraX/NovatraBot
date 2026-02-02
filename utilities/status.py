@@ -1,10 +1,8 @@
-import os
-import psutil
-import socket
-import discord
-import platform
 import datetime
-import subprocess
+import platform
+
+import discord
+import psutil
 from discord.ext import commands, tasks
 
 

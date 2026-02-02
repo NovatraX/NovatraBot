@@ -57,7 +57,7 @@ class CEmbed(discord.ui.View):
             description="List Of Accountability Commands",
             color=0x2F3136,
         )
-        
+
         try:
             # Basic commands
             AccountabilityEmbed.add_field(
@@ -100,7 +100,9 @@ class CEmbed(discord.ui.View):
                 value="Use An Item From Your Inventory",
                 inline=False,
             )
-        except:
+        except Exception as e:
+            print(f"Exception : {e}")
+
             # Fallback in case subcommand indexing fails
             AccountabilityEmbed.add_field(
                 name="/log add [task]",
@@ -142,14 +144,14 @@ class CEmbed(discord.ui.View):
                 value="Use An Item From Your Inventory",
                 inline=False,
             )
-            
+
         # Reminder commands embed
         ReminderEmbed = discord.Embed(
             title="Reminder Commands",
             description="Daily Task Logging Reminders",
             color=0xAAB99A,
         )
-        
+
         ReminderEmbed.add_field(
             name="/log reminder set [HH:MM]",
             value="Set A Daily Reminder To Log Your Tasks (24-hour format)",
@@ -165,14 +167,14 @@ class CEmbed(discord.ui.View):
             value="Check Your Current Reminder Settings",
             inline=False,
         )
-        
+
         # Store commands embed
         StoreEmbed = discord.Embed(
             title="Store Commands",
             description="NovaCoins Store",
             color=0xAAB99A,
         )
-        
+
         StoreEmbed.add_field(
             name="/log store view",
             value="Browse Items Available In The Store",
@@ -183,14 +185,14 @@ class CEmbed(discord.ui.View):
             value="Purchase An Item From The Store Using NovaCoins",
             inline=False,
         )
-        
+
         # Admin Commands Embed
         AccountabilityEmbedAdmin = discord.Embed(
             title="Accountability Admin Commands",
             description="List Of Accountability Admin Commands",
             color=0x2F3136,
         )
-        
+
         AccountabilityEmbedAdmin.add_field(
             name="/log admin reset",
             value="Reset User's Daily Accountability",
@@ -213,10 +215,15 @@ class CEmbed(discord.ui.View):
         )
 
         if interaction.user.id in self.bot.get_cog("Help").admin:
-            embeds = [AccountabilityEmbed, ReminderEmbed, StoreEmbed, AccountabilityEmbedAdmin]
+            embeds = [
+                AccountabilityEmbed,
+                ReminderEmbed,
+                StoreEmbed,
+                AccountabilityEmbedAdmin,
+            ]
         else:
             embeds = [AccountabilityEmbed, ReminderEmbed, StoreEmbed]
-            
+
         if select.values[0] == "Accountability":
             await interaction.response.send_message(embeds=embeds, ephemeral=True)
         else:

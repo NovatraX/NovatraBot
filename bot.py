@@ -1,12 +1,14 @@
-import os
-import dotenv
-import discord
 import datetime
+import os
 import traceback
+
+import discord
+import dotenv
 from discord.ext import commands
 
 dotenv.load_dotenv()
 TOKEN = os.getenv("TOKEN")
+
 
 intents = discord.Intents.all()
 bot = discord.Bot(intents=intents, command_prefix="n!" or "nova!")
@@ -144,7 +146,9 @@ async def on_slash_command_error(ctx, error):
 
 
 try:
+    bot.load_extension("handlers.ai")
     bot.load_extension("handlers.help")
+    bot.load_extension("handlers.links")
     bot.load_extension("utilities.status")
     bot.load_extension("handlers.reaction")
     bot.load_extension("utilities.feedback")

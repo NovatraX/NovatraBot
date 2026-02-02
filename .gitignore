@@ -174,3 +174,16 @@ poetry.toml
 pyrightconfig.json
 
 # End of https://www.toptal.com/developers/gitignore/api/python
+
+.github/.shared/
+.github/agents/
+.github/rules/
+.github/skills/
+.github/scripts/
+.github/workflows/
+.github/ARCHITECTURE.md
+
+# Database files
+data/*.db
+data/*.db-shm
+data/*.db-wal
