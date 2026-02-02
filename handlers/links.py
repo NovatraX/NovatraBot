@@ -19,6 +19,22 @@ from utilities.links import (
 
 LINK_CATEGORY_ID = 1295622870981939248
 PAGE_SIZE = 5
+ALLOWED_ROLE_ID = 1298971806593454080
+DENIED_MESSAGE = "idk why i can't execute the command maybe ask <@727012870683885578>"
+
+
+def has_allowed_role():
+    async def predicate(ctx: discord.ApplicationContext) -> bool:
+        if not ctx.guild:
+            return False
+        member = ctx.guild.get_member(ctx.author.id)
+        if not member:
+            return False
+        if any(role.id == ALLOWED_ROLE_ID for role in member.roles):
+            return True
+        await ctx.respond(DENIED_MESSAGE, ephemeral=True)
+        return False
+    return commands.check(predicate)
 
 
 class LinkResultsView(discord.ui.View):
@@ -254,6 +270,7 @@ class LinkSaverCog(commands.Cog):
     @commands.slash_command(
         name="links", description="View saved links from the link category"
     )
+    @has_allowed_role()
     async def links(
         self,
         ctx: discord.ApplicationContext,

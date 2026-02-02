@@ -19,6 +19,23 @@ from utilities.tasks import (
     priority_rank,
 )
 
+ALLOWED_ROLE_ID = 1298971806593454080
+DENIED_MESSAGE = "idk why i can't execute the command maybe ask <@727012870683885578>"
+
+
+def has_allowed_role():
+    async def predicate(ctx: discord.ApplicationContext) -> bool:
+        if not ctx.guild:
+            return False
+        member = ctx.guild.get_member(ctx.author.id)
+        if not member:
+            return False
+        if any(role.id == ALLOWED_ROLE_ID for role in member.roles):
+            return True
+        await ctx.respond(DENIED_MESSAGE, ephemeral=True)
+        return False
+    return commands.check(predicate)
+
 
 class AIHandlerCog(commands.Cog):
     def __init__(self, bot):
@@ -278,6 +295,7 @@ class AIHandlerCog(commands.Cog):
     @discord.slash_command(
         name="todo", description="Generate a todo list from recent messages using AI"
     )
+    @has_allowed_role()
     @commands.cooldown(1, 60, commands.BucketType.user)
     async def todo_command(
         self,
