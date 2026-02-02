@@ -153,6 +153,7 @@ try:
     bot.load_extension("handlers.reaction")
     bot.load_extension("utilities.feedback")
     bot.load_extension("handlers.link_embed")
+    bot.load_extension("utilities.links_sync")
     bot.load_extension("utilities.accountability.accountability")
 except Exception as e:
     print(f"Error Loading : {e}")
