@@ -7,9 +7,10 @@ import aiohttp
 import discord
 from discord.ext import commands, tasks
 
-GITHUB_REPO = "links"
-GITHUB_OWNER = "NovatraX"
-GITHUB_FILE_PATH = "links.json"
+GITHUB_OWNER = os.getenv("GITHUB_OWNER", "NovatraX")
+GITHUB_REPO = os.getenv("GITHUB_REPO", "links")
+GITHUB_FILE_PATH = os.getenv("GITHUB_FILE_PATH", "links.json")
+GITHUB_BRANCH = os.getenv("GITHUB_BRANCH", "main")
 LINKS_JSON_PATH = "data/links.json"
 GITHUB_API_URL = f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}/contents/{GITHUB_FILE_PATH}"
 
@@ -36,7 +37,10 @@ class LinksSyncCog(commands.Cog):
         self, session: aiohttp.ClientSession, headers: dict
     ) -> str | None:
         try:
-            async with session.get(GITHUB_API_URL, headers=headers) as resp:
+            params = {"ref": GITHUB_BRANCH} if GITHUB_BRANCH else None
+            async with session.get(
+                GITHUB_API_URL, headers=headers, params=params
+            ) as resp:
                 if resp.status == 200:
                     data = await resp.json()
                     return data.get("sha")
@@ -44,10 +48,25 @@ class LinksSyncCog(commands.Cog):
         except aiohttp.ClientError:
             return None
 
+    def _format_github_error(self, status: int, error_data: dict) -> str:
+        message = error_data.get("message", "Unknown error")
+        details = error_data.get("errors")
+        docs = error_data.get("documentation_url")
+        parts = [f"{message} (status {status})"]
+        if details:
+            parts.append(f"details: {details}")
+        if docs:
+            parts.append(f"docs: {docs}")
+        if status in (401, 403):
+            parts.append(
+                "hint: ensure the token has repo access and Contents read/write"
+            )
+        return " | ".join(parts)
+
     async def _github_push(self) -> tuple[bool, str]:
-        github_pat = os.getenv("GITHUB_PAT")
+        github_pat = os.getenv("GITHUB_PAT") or os.getenv("GITHUB_TOKEN")
         if not github_pat:
-            return False, "GITHUB_PAT not set"
+            return False, "GITHUB_PAT (or GITHUB_TOKEN) not set"
 
         if not os.path.exists(LINKS_JSON_PATH):
             return False, "links.json not found"
@@ -61,6 +80,7 @@ class LinksSyncCog(commands.Cog):
             "Authorization": f"Bearer {github_pat}",
             "Accept": "application/vnd.github+json",
             "X-GitHub-Api-Version": "2022-11-28",
+            "User-Agent": "Novatra-Bot",
         }
 
         async with aiohttp.ClientSession() as session:
@@ -72,6 +92,8 @@ class LinksSyncCog(commands.Cog):
             }
             if remote_sha:
                 payload["sha"] = remote_sha
+            if GITHUB_BRANCH:
+                payload["branch"] = GITHUB_BRANCH
 
             try:
                 async with session.put(
@@ -80,7 +102,7 @@ class LinksSyncCog(commands.Cog):
                     if resp.status in (200, 201):
                         return True, "Success"
                     error_data = await resp.json()
-                    error_msg = error_data.get("message", "Unknown error")
+                    error_msg = self._format_github_error(resp.status, error_data)
                     return False, f"Push failed: {error_msg}"
             except aiohttp.ClientError as e:
                 return False, f"Request failed: {e}"
