@@ -17,9 +17,9 @@ from utilities.links import (
     parse_metadata,
 )
 
-LINK_CATEGORY_ID = 1295622870981939248
 PAGE_SIZE = 5
 ALLOWED_ROLE_ID = 1298971806593454080
+LINK_CATEGORY_ID = 1295622870981939248
 DENIED_MESSAGE = "idk why i can't execute the command maybe ask <@727012870683885578>"
 
 
@@ -123,9 +123,11 @@ class LinkResultsView(discord.ui.View):
             ]
             if entry.get("category"):
                 value_lines.append(f"📁 {entry['category'].capitalize()}")
-            if entry.get("site_name"):
+            if entry.get("context"):
+                value_lines.append(f"💡 {entry['context']}")
+            elif entry.get("site_name"):
                 value_lines.append(f"Site: {entry['site_name']}")
-            if description:
+            if description and not entry.get("context"):
                 value_lines.append(description)
             if created_str:
                 value_lines.append(f"Saved: {created_str}")
@@ -213,7 +215,7 @@ class LinkSaverCog(commands.Cog):
                 return
 
         metadata = parse_metadata(html)
-        category = await classify_link(
+        category, context = await classify_link(
             url=url,
             domain=domain,
             title=metadata.get("title"),
@@ -227,6 +229,7 @@ class LinkSaverCog(commands.Cog):
             metadata.get("site_name"),
             metadata.get("image_url"),
             category,
+            context,
         )
 
     def _prepare_links(self, message: discord.Message, urls: List[str]) -> List[dict]:
