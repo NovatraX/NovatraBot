@@ -1,5 +1,5 @@
 import os
-from typing import Optional
+from typing import Optional, Tuple
 
 from openai import AsyncOpenAI
 
@@ -16,7 +16,9 @@ LINK_CATEGORIES = [
     "other",
 ]
 
-CLASSIFICATION_PROMPT = """Classify this link into exactly ONE category based on the metadata provided.
+CLASSIFICATION_PROMPT = """Analyze this link and provide:
+1. A category classification
+2. A brief context summary explaining what this link is about and why it might be useful
 
 Categories:
 - code: GitHub, GitLab, code repositories, programming projects
@@ -37,10 +39,12 @@ Link info:
 - Description: {description}
 - Site Name: {site_name}
 
-Respond with ONLY the category name, nothing else."""
+Respond in this exact format (2 lines only):
+CATEGORY: <category_name>
+CONTEXT: <1-2 sentence summary of what this link contains and its purpose>"""
 
 
-def _build_classifier_client() -> tuple[Optional[AsyncOpenAI], str]:
+def _build_classifier_client() -> Tuple[Optional[AsyncOpenAI], str]:
     api_key = os.getenv("OPENROUTER_API_KEY")
     if not api_key:
         return None, ""
@@ -68,11 +72,10 @@ async def classify_link(
     title: Optional[str] = None,
     description: Optional[str] = None,
     site_name: Optional[str] = None,
-) -> str:
-    """Classify a link using AI. Returns category string."""
+):
     client, model = _build_classifier_client()
     if not client:
-        return "other"
+        return "other", None
 
     prompt = CLASSIFICATION_PROMPT.format(
         url=url,
@@ -86,12 +89,23 @@ async def classify_link(
         response = await client.chat.completions.create(
             model=model,
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=20,
+            max_tokens=150,
             temperature=0,
         )
-        category = response.choices[0].message.content.strip().lower()
-        if category in LINK_CATEGORIES:
-            return category
-        return "other"
+        content = response.choices[0].message.content.strip()
+
+        category = "other"
+        context = None
+
+        for line in content.split("\n"):
+            line = line.strip()
+            if line.upper().startswith("CATEGORY:"):
+                cat = line.split(":", 1)[1].strip().lower()
+                if cat in LINK_CATEGORIES:
+                    category = cat
+            elif line.upper().startswith("CONTEXT:"):
+                context = line.split(":", 1)[1].strip()
+
+        return category, context
     except Exception:
-        return "other"
+        return "other", None
