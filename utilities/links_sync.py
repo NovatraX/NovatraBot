@@ -10,9 +10,10 @@ from discord.ext import commands, tasks
 GITHUB_OWNER = os.getenv("GITHUB_OWNER", "NovatraX")
 GITHUB_REPO = os.getenv("GITHUB_REPO", "links")
 GITHUB_FILE_PATH = os.getenv("GITHUB_FILE_PATH", "links.json")
-GITHUB_BRANCH = os.getenv("GITHUB_BRANCH", "main")
+GITHUB_BRANCH = os.getenv("GITHUB_BRANCH")
 LINKS_JSON_PATH = "data/links.json"
 GITHUB_API_URL = f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}/contents/{GITHUB_FILE_PATH}"
+GITHUB_REPO_URL = f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}"
 
 
 class LinksSyncCog(commands.Cog):
@@ -48,6 +49,18 @@ class LinksSyncCog(commands.Cog):
         except aiohttp.ClientError:
             return None
 
+    async def _get_default_branch(
+        self, session: aiohttp.ClientSession, headers: dict
+    ) -> str | None:
+        try:
+            async with session.get(GITHUB_REPO_URL, headers=headers) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    return data.get("default_branch")
+                return None
+        except aiohttp.ClientError:
+            return None
+
     def _format_github_error(self, status: int, error_data: dict) -> str:
         message = error_data.get("message", "Unknown error")
         details = error_data.get("errors")
@@ -60,6 +73,10 @@ class LinksSyncCog(commands.Cog):
         if status in (401, 403):
             parts.append(
                 "hint: ensure the token has repo access and Contents read/write"
+            )
+        if status == 404:
+            parts.append(
+                "hint: check owner/repo/branch (or missing access can also return 404)"
             )
         return " | ".join(parts)
 
@@ -84,28 +101,38 @@ class LinksSyncCog(commands.Cog):
         }
 
         async with aiohttp.ClientSession() as session:
-            remote_sha = await self._get_remote_sha(session, headers)
+            branch_override = GITHUB_BRANCH
+            for attempt in range(2):
+                remote_sha = await self._get_remote_sha(session, headers)
 
-            payload: dict = {
-                "message": "chore: update links.json",
-                "content": encoded_content,
-            }
-            if remote_sha:
-                payload["sha"] = remote_sha
-            if GITHUB_BRANCH:
-                payload["branch"] = GITHUB_BRANCH
+                payload: dict = {
+                    "message": "chore: update links.json",
+                    "content": encoded_content,
+                }
+                if remote_sha:
+                    payload["sha"] = remote_sha
+                if branch_override:
+                    payload["branch"] = branch_override
 
-            try:
-                async with session.put(
-                    GITHUB_API_URL, headers=headers, json=payload
-                ) as resp:
-                    if resp.status in (200, 201):
-                        return True, "Success"
-                    error_data = await resp.json()
-                    error_msg = self._format_github_error(resp.status, error_data)
-                    return False, f"Push failed: {error_msg}"
-            except aiohttp.ClientError as e:
-                return False, f"Request failed: {e}"
+                try:
+                    async with session.put(
+                        GITHUB_API_URL, headers=headers, json=payload
+                    ) as resp:
+                        if resp.status in (200, 201):
+                            return True, "Success"
+                        error_data = await resp.json()
+                        if resp.status == 404 and attempt == 0 and not branch_override:
+                            default_branch = await self._get_default_branch(
+                                session, headers
+                            )
+                            if default_branch:
+                                branch_override = default_branch
+                                continue
+                        error_msg = self._format_github_error(resp.status, error_data)
+                        return False, f"Push failed: {error_msg}"
+                except aiohttp.ClientError as e:
+                    return False, f"Request failed: {e}"
+            return False, "Push failed: Unable to resolve repository/branch"
 
     @tasks.loop(minutes=30)
     async def sync_links(self):
