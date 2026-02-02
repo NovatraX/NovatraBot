@@ -1,12 +1,15 @@
 import datetime
 import hashlib
 import os
+import shutil
 import subprocess
 
 import discord
 from discord.ext import commands, tasks
 
 LINKS_JSON_PATH = "data/links.json"
+LINKS_REPO_DIR = "data/links-repo"
+LINKS_REPO_URL = "github.com/NovatraX/links.git"
 
 
 class LinksSyncCog(commands.Cog):
@@ -27,71 +30,88 @@ class LinksSyncCog(commands.Cog):
         with open(LINKS_JSON_PATH, "rb") as f:
             return hashlib.md5(f.read()).hexdigest()
 
+    def _ensure_repo(self, github_pat: str) -> tuple[bool, str]:
+        auth_url = f"https://x-access-token:{github_pat}@{LINKS_REPO_URL}"
+        env = self._git_env()
+
+        if os.path.exists(LINKS_REPO_DIR):
+            result = subprocess.run(
+                ["git", "pull", "--rebase"],
+                cwd=LINKS_REPO_DIR,
+                capture_output=True,
+                text=True,
+                env=env,
+            )
+            if result.returncode != 0:
+                shutil.rmtree(LINKS_REPO_DIR, ignore_errors=True)
+            else:
+                return True, "Repo updated"
+
+        os.makedirs(os.path.dirname(LINKS_REPO_DIR), exist_ok=True)
+        result = subprocess.run(
+            ["git", "clone", auth_url, LINKS_REPO_DIR],
+            capture_output=True,
+            text=True,
+            env=env,
+        )
+        if result.returncode != 0:
+            return False, f"Clone failed: {result.stderr}"
+        return True, "Repo cloned"
+
+    def _git_env(self) -> dict:
+        env = os.environ.copy()
+        env["GIT_TERMINAL_PROMPT"] = "0"
+        env["GIT_ASKPASS"] = ""
+        env["GIT_CREDENTIAL_HELPER"] = ""
+        return env
+
     def _git_push(self) -> tuple[bool, str]:
         github_pat = os.getenv("GITHUB_PAT")
         if not github_pat:
             return False, "GITHUB_PAT not set"
 
+        ok, msg = self._ensure_repo(github_pat)
+        if not ok:
+            return False, msg
+
+        shutil.copy(LINKS_JSON_PATH, os.path.join(LINKS_REPO_DIR, "links.json"))
+
+        env = self._git_env()
+
         try:
             subprocess.run(
-                ["git", "add", LINKS_JSON_PATH],
-                cwd=os.getcwd(),
+                ["git", "add", "links.json"],
+                cwd=LINKS_REPO_DIR,
                 check=True,
                 capture_output=True,
             )
 
             diff_result = subprocess.run(
                 ["git", "diff", "--cached", "--name-only"],
-                cwd=os.getcwd(),
+                cwd=LINKS_REPO_DIR,
                 capture_output=True,
                 text=True,
             )
-            if LINKS_JSON_PATH not in diff_result.stdout:
-                return False, "No changes staged"
+            if "links.json" not in diff_result.stdout:
+                return False, "No changes to push"
 
             subprocess.run(
                 ["git", "commit", "-m", "chore: update links.json"],
-                cwd=os.getcwd(),
+                cwd=LINKS_REPO_DIR,
                 check=True,
                 capture_output=True,
             )
 
-            remote_url = subprocess.run(
-                ["git", "remote", "get-url", "origin"],
-                cwd=os.getcwd(),
+            auth_url = f"https://x-access-token:{github_pat}@{LINKS_REPO_URL}"
+            result = subprocess.run(
+                ["git", "push", auth_url, "HEAD"],
+                cwd=LINKS_REPO_DIR,
                 capture_output=True,
                 text=True,
-            ).stdout.strip()
-
-            env = os.environ.copy()
-            env["GIT_TERMINAL_PROMPT"] = "0"
-            env["GIT_ASKPASS"] = ""
-            env["GIT_CREDENTIAL_HELPER"] = ""
-
-            if remote_url.startswith("https://"):
-                parts = remote_url.replace("https://", "").split("/")
-                repo_path = "/".join(parts[-2:]) if len(parts) >= 2 else remote_url
-                auth_url = f"https://x-access-token:{github_pat}@github.com/{repo_path}"
-
-                result = subprocess.run(
-                    ["git", "push", auth_url, "HEAD"],
-                    cwd=os.getcwd(),
-                    capture_output=True,
-                    text=True,
-                    env=env,
-                )
-                if result.returncode != 0:
-                    return False, f"Push failed: {result.stderr}"
-            else:
-                result = subprocess.run(
-                    ["git", "push"],
-                    cwd=os.getcwd(),
-                    capture_output=True,
-                    text=True,
-                    env=env,
-                )
-                if result.returncode != 0:
-                    return False, f"Push failed: {result.stderr}"
+                env=env,
+            )
+            if result.returncode != 0:
+                return False, f"Push failed: {result.stderr}"
 
             return True, "Success"
         except subprocess.CalledProcessError as e:
