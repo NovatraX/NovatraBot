@@ -1,6 +1,6 @@
 import discord
 from discord import SlashCommandGroup
-from discord.ext import commands
+from discord.ext import commands, tasks
 
 from .commands import AccountabilityCommands
 
@@ -11,7 +11,7 @@ class AccountabilityCog(commands.Cog):
         self.commands = AccountabilityCommands(bot)
         self.db = self.commands.db
         self.helpers = self.commands.helpers
-        self.reminder_check.start()
+        self.reminder_task.start()
 
     log = SlashCommandGroup(name="log", description="Accountability Commands")
 
@@ -125,8 +125,12 @@ class AccountabilityCog(commands.Cog):
     async def on_member_remove(self, member):
         await self.commands.on_member_remove(member)
 
-    @reminder_check.before_loop
-    async def before_reminder_check(self):
+    @tasks.loop(minutes=1)
+    async def reminder_task(self):
+        await self.commands.send_reminders()
+
+    @reminder_task.before_loop
+    async def before_reminder_task(self):
         await self.bot.wait_until_ready()
 
     async def cog_load(self):
@@ -134,7 +138,7 @@ class AccountabilityCog(commands.Cog):
         await self.commands.cleanup_missing_users()
 
     def cog_unload(self):
-        self.reminder_check.cancel()
+        self.reminder_task.cancel()
         self.db.close()
 
 
