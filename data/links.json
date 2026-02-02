@@ -89,7 +89,25 @@
       "category_id": 1295622870981939248,
       "author_id": 727012870683885578,
       "created_at": "2026-02-02T18:01:42.432795"
+    },
+    {
+      "id": 6,
+      "url": "https://alexeyondata.substack.com/p/telegram-assistant",
+      "normalized_url": "https://alexeyondata.substack.com/p/telegram-assistant",
+      "domain": "alexeyondata.substack.com",
+      "title": "How I Built a Telegram Assistant That Turns Brain Dumps into Structured Markdown",
+      "description": "It processes voice notes, links, and files, analyzes them, and automatically versions the results in GitHub. Plus, my experiment with testing agent and a list of valuable resources.",
+      "site_name": null,
+      "image_url": "https://substackcdn.com/image/fetch/$s_!uP4T!,w_1200,h_675,c_fill,f_jpg,q_auto:good,fl_progressive:steep,g_auto/https%3A%2F%2Fsubstack-post-media.s3.amazonaws.com%2Fpublic%2Fimages%2F867054d5-9074-4e9d-8dd9-18b22a7aefb3_1946x964.png",
+      "context": "This Substack post details the author's creation of a Telegram assistant that converts unstructured data (voice notes, links, files) into structured Markdown, with GitHub versioning. It also includes an experiment with testing agents and a list of helpful resources.",
+      "category": "article",
+      "message_id": 1467945097239990484,
+      "message_link": "https://discord.com/channels/1295622870981939243/1295745640621539411/1467945097239990484",
+      "channel_id": 1295745640621539411,
+      "category_id": 1295622870981939248,
+      "author_id": 727012870683885578,
+      "created_at": "2026-02-02T18:09:44.456965"
     }
   ],
-  "next_id": 6
+  "next_id": 7
 }
