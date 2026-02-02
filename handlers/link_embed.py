@@ -16,6 +16,13 @@ LINK_FIXERS = [
         ),
         "replacement": "https://yewtu.be/{path}",
     },
+    {
+        "pattern": re.compile(
+            r"https?://(?:www\.)?instagram\.com/((?:p|reels?|stories|share)/\S+|\w+/p/\S+)",
+            re.IGNORECASE,
+        ),
+        "replacement": "https://vxinstagram.com/{path}",
+    },
 ]
 
 
@@ -37,10 +44,16 @@ class EmbedFixerCog(commands.Cog):
         if not fixed_links:
             return
 
-        await message.reply(
-            "\n".join(fixed_links),
-            mention_author=False,
-        )
+        webhook = await message.channel.create_webhook(name="EmbedFixer")
+        try:
+            await webhook.send(
+                "\n".join(fixed_links),
+                username=message.author.display_name,
+                avatar_url=message.author.display_avatar.url,
+            )
+            await message.delete()
+        finally:
+            await webhook.delete()
 
 
 def setup(bot: discord.Bot):
