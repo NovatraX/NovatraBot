@@ -202,19 +202,19 @@ class LinkSaverCog(commands.Cog):
         return f"https://discord.com/channels/{message.guild.id}/{message.channel.id}/{message.id}"
 
     async def _fetch_and_store_metadata(self, link_id: int, url: str, domain: str):
+        metadata = {}
         async with self._meta_semaphore:
             try:
                 session = await self._get_session()
                 async with session.get(url, allow_redirects=True) as resp:
                     content_type = resp.headers.get("Content-Type", "")
-                    if "text/html" not in content_type:
-                        return
-                    raw = await resp.content.read(200000)
-                    html = raw.decode("utf-8", errors="ignore")
+                    if "text/html" in content_type:
+                        raw = await resp.content.read(200000)
+                        html = raw.decode("utf-8", errors="ignore")
+                        metadata = parse_metadata(html)
             except Exception:
-                return
+                pass
 
-        metadata = parse_metadata(html)
         category, context = await classify_link(
             url=url,
             domain=domain,
