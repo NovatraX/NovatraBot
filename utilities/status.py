@@ -99,10 +99,19 @@ class StatusCog(commands.Cog):
 
     def get_services_info(self):
         return {
-            "openrouter_configured": bool(os.getenv("OPENROUTER_API_KEY")),
             "openrouter_model": os.getenv("OPENROUTER_MODEL", "openai/gpt-4o-mini"),
-            "github_pat_configured": bool(os.getenv("GITHUB_PAT")),
+            "openrouter_configured": bool(os.getenv("OPENROUTER_API_KEY")),
         }
+
+    def get_github_sync_status(self):
+        sync_cog = self.bot.get_cog("LinksSyncCog")
+        if not sync_cog:
+            return "⚠️ Not loaded"
+        if sync_cog.last_push_time:
+            timestamp = int(sync_cog.last_push_time.timestamp())
+            return f"{'✅' if sync_cog.last_push_success else '❌'} <t:{timestamp}:f>"
+
+        return "⏳ Pending"
 
     async def create_status_embed(self):
         info = self.get_system_info()
@@ -162,29 +171,15 @@ class StatusCog(commands.Cog):
 
         links_info = self.get_links_info()
         services_info = self.get_services_info()
-
-        sync_cog = self.bot.get_cog("LinksSyncCog")
-        sync_status = "⏳ Pending"
-        if sync_cog and sync_cog.last_push_time:
-            if sync_cog.last_push_success:
-                sync_status = f"✅ {sync_cog.last_push_time.strftime('%H:%M')}"
-            else:
-                sync_status = f"❌ {sync_cog.last_push_time.strftime('%H:%M')}"
+        sync_status = self.get_github_sync_status()
 
         if links_info.get("exists"):
-            top_cats = sorted(
-                links_info["categories"].items(), key=lambda x: x[1], reverse=True
-            )[:3]
-            cats_str = (
-                ", ".join(f"{k}: {v}" for k, v in top_cats) if top_cats else "None"
-            )
-            last_mod = links_info["modified"].strftime("%Y-%m-%d %H:%M")
+            last_mod_ts = int(links_info["modified"].timestamp())
+
             embed.add_field(
                 name="🔗 Links Database",
                 value=f"**Total** : {links_info['count']} links\n"
-                f"Size : {self.format_bytes(links_info['size'])}\n"
-                f"Modified : {last_mod}\n"
-                f"Top : {cats_str}\n"
+                f"Modified : <t:{last_mod_ts}:f>\n"
                 f"Sync : {sync_status}",
                 inline=False,
             )
@@ -198,15 +193,11 @@ class StatusCog(commands.Cog):
         openrouter_status = (
             "✅ Configured" if services_info["openrouter_configured"] else "❌ Not set"
         )
-        github_status = (
-            "✅ Configured" if services_info["github_pat_configured"] else "❌ Not set"
-        )
         embed.add_field(
             name="⚙️ Services",
-            value=f"**OpenRouter** : {openrouter_status}\n"
-            f"Model : `{services_info['openrouter_model']}`\n"
-            f"**GitHub PAT** : {github_status}",
-            inline=False,
+            value=f"**GitHub Sync** : {sync_status}"
+            f"**OpenRouter** : {openrouter_status}\n\n"
+            f"Model : `{services_info['openrouter_model']}`\n",
         )
 
         uptime = info["uptime"]
@@ -219,7 +210,7 @@ class StatusCog(commands.Cog):
 
         return embed
 
-    @tasks.loop(minutes=2)
+    @tasks.loop(minutes=5)
     async def update_status(self):
         if not self.status_channel_id:
             return
@@ -247,7 +238,7 @@ class StatusCog(commands.Cog):
     async def set_status_channel(self, ctx):
         self.status_channel_id = ctx.channel.id
         await ctx.respond(
-            "✅ This Channel Will Receive Status Messages Every 2 Minutes"
+            "✅ This Channel Will Receive Status Messages Every 5 Minutes"
         )
 
         embed = await self.create_status_embed()
