@@ -1,31 +1,23 @@
 import asyncio
-import base64
 import datetime
 import hashlib
 import os
 import shutil
 import subprocess
 
-import aiohttp
 import discord
 from discord.ext import commands, tasks
 
 GITHUB_BRANCH = os.getenv("GITHUB_BRANCH")
-GITHUB_REPO = os.getenv("GITHUB_REPO", "links")
-GITHUB_OWNER = os.getenv("GITHUB_OWNER", "NovatraX")
-GITHUB_FILE_PATH = os.getenv("GITHUB_FILE_PATH", "links.json")
+GITHUB_CLONE_URL = os.getenv("GITHUB_CLONE_URL", "https://github.com/NovatraX/links")
 
-GITHUB_SSH_URL = os.getenv("GITHUB_SSH_URL")
-GITHUB_SSH_DIR = os.getenv("GITHUB_SSH_DIR", "data/links-repo")
+GITHUB_SSH_DIR = os.getenv("GITHUB_SSH_DIR", "data/links")
+GITHUB_FILE_PATH = os.getenv("GITHUB_FILE_PATH", "links.json")
 
 GITHUB_SSH_KEY_PATH = os.getenv("GITHUB_SSH_KEY_PATH")
 
-GITHUB_API_URL = f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}/contents/{GITHUB_FILE_PATH}"
-GITHUB_REPO_URL = f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}"
-
 GIT_COMMIT_NAME = os.getenv("GIT_COMMIT_NAME", "SpreadSheets600")
 GIT_COMMIT_EMAIL = os.getenv("GIT_COMMIT_EMAIL", "sohammaity239@gmail.com")
-
 LINKS_JSON_PATH = "data/links.json"
 
 
@@ -47,52 +39,6 @@ class LinksSyncCog(commands.Cog):
         with open(LINKS_JSON_PATH, "rb") as f:
             return hashlib.md5(f.read()).hexdigest()
 
-    async def _get_remote_sha(
-        self, session: aiohttp.ClientSession, headers: dict
-    ) -> str | None:
-        try:
-            params = {"ref": GITHUB_BRANCH} if GITHUB_BRANCH else None
-            async with session.get(
-                GITHUB_API_URL, headers=headers, params=params
-            ) as resp:
-                if resp.status == 200:
-                    data = await resp.json()
-                    return data.get("sha")
-                return None
-        except aiohttp.ClientError:
-            return None
-
-    async def _get_default_branch(
-        self, session: aiohttp.ClientSession, headers: dict
-    ) -> str | None:
-        try:
-            async with session.get(GITHUB_REPO_URL, headers=headers) as resp:
-                if resp.status == 200:
-                    data = await resp.json()
-                    return data.get("default_branch")
-                return None
-        except aiohttp.ClientError:
-            return None
-
-    def _format_github_error(self, status: int, error_data: dict) -> str:
-        message = error_data.get("message", "Unknown error")
-        details = error_data.get("errors")
-        docs = error_data.get("documentation_url")
-        parts = [f"{message} (status {status})"]
-        if details:
-            parts.append(f"details: {details}")
-        if docs:
-            parts.append(f"docs: {docs}")
-        if status in (401, 403):
-            parts.append(
-                "hint: ensure the token has repo access and Contents read/write"
-            )
-        if status == 404:
-            parts.append(
-                "hint: check owner/repo/branch (or missing access can also return 404)"
-            )
-        return " | ".join(parts)
-
     def _run_git(self, args: list[str], cwd: str | None, env: dict) -> tuple[bool, str]:
         result = subprocess.run(
             ["git", *args],
@@ -110,13 +56,12 @@ class LinksSyncCog(commands.Cog):
         if "GIT_AUTHOR_NAME" not in env and "GIT_COMMITTER_NAME" not in env:
             env["GIT_AUTHOR_NAME"] = GIT_COMMIT_NAME or "SpreadSheets600"
             env["GIT_COMMITTER_NAME"] = GIT_COMMIT_NAME or "SpreadSheets600"
+
         if "GIT_AUTHOR_EMAIL" not in env and "GIT_COMMITTER_EMAIL" not in env:
             env["GIT_AUTHOR_EMAIL"] = GIT_COMMIT_EMAIL or "sohammaity239@gmail.com"
             env["GIT_COMMITTER_EMAIL"] = GIT_COMMIT_EMAIL or "sohammaity239@gmail.com"
 
-    def _resolve_branch(
-        self, repo_dir: str, env: dict, desired_branch: str | None
-    ) -> str | None:
+    def _resolve_branch(self, repo_dir: str, env: dict, desired_branch: str | None):
         if desired_branch:
             return desired_branch
         ok, current = self._run_git(
@@ -131,9 +76,10 @@ class LinksSyncCog(commands.Cog):
             return origin_head.split("/", 1)[1] if "/" in origin_head else origin_head
         return None
 
-    def _git_push_sync(self) -> tuple[bool, str]:
+    def _git_push_sync(self):
         if not shutil.which("git"):
             return False, "git is not installed on the host"
+
         if not os.path.exists(LINKS_JSON_PATH):
             return False, "links.json not found"
 
@@ -150,15 +96,11 @@ class LinksSyncCog(commands.Cog):
         desired_branch = GITHUB_BRANCH
 
         if not os.path.isdir(git_dir):
-            if not GITHUB_SSH_URL:
-                return False, (
-                    f"GITHUB_SSH_URL not set and no git repo found at {repo_dir}"
-                )
             os.makedirs(os.path.dirname(repo_dir) or ".", exist_ok=True)
-            clone_args = ["clone", "--depth", "1"]
+            clone_args = ["clone"]
             if desired_branch:
                 clone_args += ["--branch", desired_branch]
-            clone_args += [GITHUB_SSH_URL, repo_dir]
+            clone_args += [GITHUB_CLONE_URL, repo_dir]
             ok, msg = self._run_git(clone_args, None, env)
             if not ok:
                 return False, f"git clone failed: {msg}"
@@ -208,7 +150,11 @@ class LinksSyncCog(commands.Cog):
         if not ok:
             return False, f"git commit failed: {msg}"
 
-        push_args = ["push", "origin", branch] if branch else ["push", "origin", "HEAD"]
+        push_args = (
+            ["push", "--force", "origin", branch]
+            if branch
+            else ["push", "--force", "origin", "HEAD"]
+        )
         ok, msg = self._run_git(push_args, repo_dir, env)
         if not ok:
             return False, f"git push failed: {msg}"
@@ -218,87 +164,35 @@ class LinksSyncCog(commands.Cog):
     async def _git_push(self) -> tuple[bool, str]:
         return await asyncio.to_thread(self._git_push_sync)
 
-    async def _github_push(self) -> tuple[bool, str]:
-        if GITHUB_SSH_URL or os.path.isdir(os.path.join(GITHUB_SSH_DIR, ".git")):
-            return await self._git_push()
-
-        github_pat = os.getenv("GITHUB_PAT") or os.getenv("GITHUB_TOKEN")
-        if not github_pat:
-            return False, "GITHUB_PAT (or GITHUB_TOKEN) not set"
-
-        if not os.path.exists(LINKS_JSON_PATH):
-            return False, "links.json not found"
-
-        with open(LINKS_JSON_PATH, "rb") as f:
-            content = f.read()
-
-        encoded_content = base64.b64encode(content).decode("utf-8")
-
-        headers = {
-            "Authorization": f"Bearer {github_pat}",
-            "Accept": "application/vnd.github+json",
-            "X-GitHub-Api-Version": "2022-11-28",
-            "User-Agent": "Novatra-Bot",
-        }
-
-        async with aiohttp.ClientSession() as session:
-            branch_override = GITHUB_BRANCH
-            for attempt in range(2):
-                remote_sha = await self._get_remote_sha(session, headers)
-
-                payload: dict = {
-                    "message": "chore: update links.json",
-                    "content": encoded_content,
-                }
-                if remote_sha:
-                    payload["sha"] = remote_sha
-                if branch_override:
-                    payload["branch"] = branch_override
-
-                try:
-                    async with session.put(
-                        GITHUB_API_URL, headers=headers, json=payload
-                    ) as resp:
-                        if resp.status in (200, 201):
-                            return True, "Success"
-                        error_data = await resp.json()
-                        if resp.status == 404 and attempt == 0 and not branch_override:
-                            default_branch = await self._get_default_branch(
-                                session, headers
-                            )
-                            if default_branch:
-                                branch_override = default_branch
-                                continue
-                        error_msg = self._format_github_error(resp.status, error_data)
-                        return False, f"Push failed: {error_msg}"
-                except aiohttp.ClientError as e:
-                    return False, f"Request failed: {e}"
-            return False, "Push failed: Unable to resolve repository/branch"
-
-    @tasks.loop(minutes=30)
-    async def sync_links(self):
-        self.last_sync_time = datetime.datetime.now()
+    async def _sync_once(self, force: bool = False) -> None:
         current_hash = self._get_file_hash()
         if current_hash is None:
             return
 
-        if self._last_hash is None:
-            self._last_hash = current_hash
+        if not force and self._last_hash == current_hash:
             return
 
-        if current_hash != self._last_hash:
-            pushed, msg = await self._github_push()
-            self.last_push_time = datetime.datetime.now()
-            self.last_push_success = pushed
-            if pushed:
-                print("[LinkSync] Pushed updated links.json to GitHub")
-            else:
-                print(f"[LinkSync] Push failed: {msg}")
+        pushed, msg = await self._git_push()
+        self.last_sync_time = datetime.datetime.now()
+        self.last_push_time = datetime.datetime.now()
+        self.last_push_success = pushed
+
+        if pushed or msg == "No changes to push":
             self._last_hash = current_hash
+
+        if pushed:
+            print("[LinkSync] Pushed updated links.json to GitHub")
+        else:
+            print(f"[LinkSync] Push failed: {msg}")
+
+    @tasks.loop(seconds=30)
+    async def sync_links(self):
+        await self._sync_once()
 
     @sync_links.before_loop
     async def before_sync(self):
         await self.bot.wait_until_ready()
+        await self._sync_once(force=True)
 
     @commands.slash_command(
         name="synclinks", description="Manually sync links.json to GitHub"
@@ -311,11 +205,12 @@ class LinksSyncCog(commands.Cog):
             await ctx.followup.send("❌ links.json not found")
             return
 
-        pushed, msg = await self._github_push()
+        pushed, msg = await self._git_push()
         self.last_sync_time = datetime.datetime.now()
         self.last_push_time = datetime.datetime.now()
         self.last_push_success = pushed
-        self._last_hash = current_hash
+        if pushed or msg == "No changes to push":
+            self._last_hash = current_hash
 
         if pushed:
             await ctx.followup.send("✅ Successfully pushed links.json to GitHub")
