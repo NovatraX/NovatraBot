@@ -109,7 +109,7 @@ class StatusCog(commands.Cog):
             return "⚠️ Not loaded"
         if sync_cog.last_push_time:
             timestamp = int(sync_cog.last_push_time.timestamp())
-            return f"{'✅' if sync_cog.last_push_success else '❌'} <t:{timestamp}:f>"
+            return f"<t:{timestamp}:f>"
 
         return "⏳ Pending"
 
@@ -178,7 +178,7 @@ class StatusCog(commands.Cog):
 
             embed.add_field(
                 name="🔗 Links Database",
-                value=f"**Total** : {links_info['count']} links\n"
+                value=f"**Total** : {links_info['count']} links\n\n"
                 f"Modified : <t:{last_mod_ts}:f>\n"
                 f"Sync : {sync_status}",
                 inline=False,
@@ -191,12 +191,11 @@ class StatusCog(commands.Cog):
             )
 
         openrouter_status = (
-            "✅ Configured" if services_info["openrouter_configured"] else "❌ Not set"
+            "Configured" if services_info["openrouter_configured"] else "Not Configured"
         )
         embed.add_field(
             name="⚙️ Services",
-            value=f"**GitHub Sync** : {sync_status}"
-            f"**OpenRouter** : {openrouter_status}\n\n"
+            value=f"**OpenRouter** : {openrouter_status}\n"
             f"Model : `{services_info['openrouter_model']}`\n",
         )
 
