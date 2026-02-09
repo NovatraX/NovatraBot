@@ -9,18 +9,31 @@ from discord.ext import commands
 from utilities.databases import LinkDatabase
 from utilities.links import (
     LINK_CATEGORIES,
-    classify_link,
+    analyze_link,
     domain_for_url,
     extract_urls,
     is_media_url,
     normalize_url,
-    parse_metadata,
 )
 
 PAGE_SIZE = 5
 ALLOWED_ROLE_ID = 1298971806593454080
 LINK_CATEGORY_ID = 1295622870981939248
 DENIED_MESSAGE = "idk why i can't execute the command maybe ask <@727012870683885578>"
+EXCLUDED_LINK_DOMAINS = ["instagram.com", "instagr.am"]
+LINKS_EMBED_URL = "https://novatra.spreadsheets600.buzz/"
+
+
+def _is_excluded_domain(domain: str) -> bool:
+    host = domain.split(":", 1)[0].lower()
+    return any(
+        host == excluded or host.endswith(f".{excluded}")
+        for excluded in EXCLUDED_LINK_DOMAINS
+    )
+
+
+def _is_excluded_url(url: str) -> bool:
+    return _is_excluded_domain(domain_for_url(url))
 
 
 def has_allowed_role():
@@ -59,9 +72,17 @@ class LinkResultsView(discord.ui.View):
             user_id=self.user_id,
             category_id=self.category_id,
             category=self.category,
+            exclude_domains=EXCLUDED_LINK_DOMAINS,
         )
         self.page_size = PAGE_SIZE
         self.message: Optional[discord.Message] = None
+        self.add_item(
+            discord.ui.Button(
+                label="Site",
+                style=discord.ButtonStyle.link,
+                url=LINKS_EMBED_URL,
+            )
+        )
         self._sync_buttons()
 
     def _sync_buttons(self):
@@ -88,6 +109,7 @@ class LinkResultsView(discord.ui.View):
             user_id=self.user_id,
             category_id=self.category_id,
             category=self.category,
+            exclude_domains=EXCLUDED_LINK_DOMAINS,
             limit=self.page_size,
             offset=self.page * self.page_size,
         )
@@ -202,7 +224,7 @@ class LinkSaverCog(commands.Cog):
         return f"https://discord.com/channels/{message.guild.id}/{message.channel.id}/{message.id}"
 
     async def _fetch_and_store_metadata(self, link_id: int, url: str, domain: str):
-        metadata = {}
+        html = None
         async with self._meta_semaphore:
             try:
                 session = await self._get_session()
@@ -211,23 +233,20 @@ class LinkSaverCog(commands.Cog):
                     if "text/html" in content_type:
                         raw = await resp.content.read(200000)
                         html = raw.decode("utf-8", errors="ignore")
-                        metadata = parse_metadata(html)
             except Exception:
                 pass
 
-        category, context = await classify_link(
+        metadata, category, context = await analyze_link(
             url=url,
             domain=domain,
-            title=metadata.get("title"),
-            description=metadata.get("description"),
-            site_name=metadata.get("site_name"),
+            html=html,
         )
         self.db.update_metadata(
             link_id,
-            metadata.get("title"),
-            metadata.get("description"),
-            metadata.get("site_name"),
-            metadata.get("image_url"),
+            metadata.title,
+            metadata.description,
+            metadata.site_name,
+            metadata.image_url,
             category,
             context,
         )
@@ -259,7 +278,9 @@ class LinkSaverCog(commands.Cog):
             return
 
         urls = extract_urls(message.content)
-        urls = [url for url in urls if not is_media_url(url)]
+        urls = [
+            url for url in urls if not is_media_url(url) and not _is_excluded_url(url)
+        ]
         if not urls:
             return
 
