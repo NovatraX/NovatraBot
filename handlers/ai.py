@@ -159,7 +159,7 @@ class AIHandlerCog(commands.Cog):
         if not content and message.attachments:
             filenames = ", ".join(att.filename for att in message.attachments)
             content = f"Attachments: {filenames}"
-        author = f"{message.author.display_name} ({message.author.name}#{message.author.discriminator})"
+        author = f"{message.author.display_name} ({message.author})"
         timestamp = message.created_at.strftime("%Y-%m-%d %H:%M")
         link = self._message_link(message)
         return f"[{timestamp}] {author} [Message: {link}]: {content}"
@@ -186,7 +186,7 @@ class AIHandlerCog(commands.Cog):
 
         prompt = (
             "Analyze the Discord conversation and extract only tasks assigned to "
-            f"{user.display_name} ({user.name}#{user.discriminator}).\n\n"
+            f"{user.display_name} ({user})\n\n"
             "Rules:\n"
             "- Focus on clear, actionable tasks assigned to the user.\n"
             "- Ignore general chatter or tasks for other people.\n"
