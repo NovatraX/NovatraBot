@@ -7,3 +7,4 @@ psutil>=7.0.0
 py-cord>=2.6.1
 python-dotenv>=1.0.1
 gql[all]>=3.0.0
+trafilatura>=1.9.0
