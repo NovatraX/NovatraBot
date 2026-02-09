@@ -2,6 +2,7 @@ import json
 import os
 from datetime import datetime
 from typing import Dict, List, Optional
+from urllib.parse import urlparse
 
 
 class LinkDatabase:
@@ -90,8 +91,13 @@ class LinkDatabase:
         user_id: Optional[int] = None,
         category_id: Optional[int] = None,
         category: Optional[str] = None,
+        exclude_domains: Optional[List[str]] = None,
     ) -> int:
-        return len(self._filter_links(query, user_id, category_id, category))
+        return len(
+            self._filter_links(
+                query, user_id, category_id, category, exclude_domains=exclude_domains
+            )
+        )
 
     def get_links(
         self,
@@ -99,10 +105,13 @@ class LinkDatabase:
         user_id: Optional[int] = None,
         category_id: Optional[int] = None,
         category: Optional[str] = None,
+        exclude_domains: Optional[List[str]] = None,
         limit: int = 25,
         offset: int = 0,
     ) -> List[Dict]:
-        filtered = self._filter_links(query, user_id, category_id, category)
+        filtered = self._filter_links(
+            query, user_id, category_id, category, exclude_domains=exclude_domains
+        )
         filtered.sort(key=lambda x: (x.get("created_at") or "", x["id"]), reverse=True)
         return filtered[offset : offset + limit]
 
@@ -112,11 +121,21 @@ class LinkDatabase:
         user_id: Optional[int],
         category_id: Optional[int],
         category: Optional[str],
+        exclude_domains: Optional[List[str]],
     ) -> List[Dict]:
         data = self._load_data()
         results = []
+        normalized_excludes = [
+            domain.lstrip(".").lower()
+            for domain in (exclude_domains or [])
+            if domain
+        ]
 
         for link in data["links"]:
+            if normalized_excludes and self._is_excluded_domain(
+                link.get("domain"), link.get("url"), normalized_excludes
+            ):
+                continue
             if user_id and link.get("author_id") != user_id:
                 continue
             if category_id and link.get("category_id") != category_id:
@@ -141,3 +160,20 @@ class LinkDatabase:
             results.append(link)
 
         return results
+
+    @staticmethod
+    def _is_excluded_domain(
+        domain: Optional[str],
+        url: Optional[str],
+        exclude_domains: List[str],
+    ) -> bool:
+        host = (domain or "").lower()
+        if not host and url:
+            host = urlparse(url).netloc.lower()
+        host = host.split(":", 1)[0]
+        if not host:
+            return False
+        for excluded in exclude_domains:
+            if host == excluded or host.endswith(f".{excluded}"):
+                return True
+        return False
