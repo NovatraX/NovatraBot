@@ -36,7 +36,7 @@ def extract_urls(text: str) -> List[str]:
         cleaned = cleaned.rstrip(_TRAILING_PUNCT)
         if cleaned:
             urls.append(cleaned)
-    # Dedupe while preserving order.
+
     return list(dict.fromkeys(urls))
 
 
