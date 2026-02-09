@@ -1,4 +1,4 @@
-from utilities.links.classifier import LINK_CATEGORIES, classify_link
+from utilities.links.classifier import LINK_CATEGORIES, LinkMetadata, analyze_link, classify_link
 from utilities.links.utils import (
     domain_for_url,
     extract_urls,
@@ -9,6 +9,8 @@ from utilities.links.utils import (
 
 __all__ = [
     "LINK_CATEGORIES",
+    "LinkMetadata",
+    "analyze_link",
     "classify_link",
     "domain_for_url",
     "extract_urls",
