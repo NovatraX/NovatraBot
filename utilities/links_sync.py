@@ -29,6 +29,7 @@ class LinksSyncCog(commands.Cog):
         self.last_sync_time: datetime.datetime | None = None
         self.last_push_time: datetime.datetime | None = None
         self.last_push_success: bool | None = None
+        self._first_sync = True
         self.sync_links.start()
 
     def cog_unload(self):
@@ -122,6 +123,25 @@ class LinksSyncCog(commands.Cog):
                 if not ok:
                     return False, f"git checkout failed: {msg}"
             branch = desired_branch
+
+        if self._first_sync:
+            pull_args = (
+                ["pull", "--rebase", "origin", branch]
+                if branch
+                else ["pull", "--rebase"]
+            )
+            ok, msg = self._run_git(pull_args, repo_dir, env)
+            if not ok:
+                return False, f"git pull failed: {msg}"
+            # Copy from repo to local to sync
+            repo_path = os.path.join(repo_dir, GITHUB_FILE_PATH)
+            if os.path.exists(repo_path):
+                os.makedirs(os.path.dirname(LINKS_JSON_PATH) or ".", exist_ok=True)
+                with open(repo_path, "rb") as source:
+                    content = source.read()
+                with open(LINKS_JSON_PATH, "wb") as dest:
+                    dest.write(content)
+            self._first_sync = False
 
         target_path = os.path.join(repo_dir, GITHUB_FILE_PATH)
         os.makedirs(os.path.dirname(target_path) or ".", exist_ok=True)
