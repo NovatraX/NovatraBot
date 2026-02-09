@@ -34,6 +34,7 @@ def has_allowed_role():
             return True
         await ctx.respond(DENIED_MESSAGE, ephemeral=True)
         return False
+
     return commands.check(predicate)
 
 
