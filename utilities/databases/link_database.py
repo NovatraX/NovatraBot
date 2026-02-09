@@ -115,6 +115,10 @@ class LinkDatabase:
         filtered.sort(key=lambda x: (x.get("created_at") or "", x["id"]), reverse=True)
         return filtered[offset : offset + limit]
 
+    def get_all_links(self) -> List[Dict]:
+        data = self._load_data()
+        return data["links"]
+
     def _filter_links(
         self,
         query: Optional[str],
@@ -126,9 +130,7 @@ class LinkDatabase:
         data = self._load_data()
         results = []
         normalized_excludes = [
-            domain.lstrip(".").lower()
-            for domain in (exclude_domains or [])
-            if domain
+            domain.lstrip(".").lower() for domain in (exclude_domains or []) if domain
         ]
 
         for link in data["links"]:

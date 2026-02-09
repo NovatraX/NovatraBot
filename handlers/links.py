@@ -1,4 +1,6 @@
 import asyncio
+import json
+import os
 from datetime import datetime
 from typing import List, Optional
 
@@ -22,6 +24,7 @@ LINK_CATEGORY_ID = 1295622870981939248
 DENIED_MESSAGE = "idk why i can't execute the command maybe ask <@727012870683885578>"
 EXCLUDED_LINK_DOMAINS = ["instagram.com", "instagr.am"]
 LINKS_EMBED_URL = "https://novatra.spreadsheets600.buzz/"
+LINKS_JSON_PATH = "data/links.json"
 
 
 def _is_excluded_domain(domain: str) -> bool:
@@ -262,7 +265,9 @@ class LinkSaverCog(commands.Cog):
                     "message_id": message.id,
                     "message_link": self._message_link(message),
                     "channel_id": message.channel.id,
-                    "category_id": message.channel.category_id,
+                    "category_id": message.channel.category_id
+                    if hasattr(message.channel, "category_id")
+                    else None,
                     "author_id": message.author.id,
                 }
             )
@@ -272,7 +277,10 @@ class LinkSaverCog(commands.Cog):
     async def on_message(self, message: discord.Message):
         if message.author.bot or message.guild is None:
             return
-        if message.channel.category_id != LINK_CATEGORY_ID:
+        if (
+            not hasattr(message.channel, "category_id")
+            or message.channel.category_id != LINK_CATEGORY_ID
+        ):
             return
         if not message.content:
             return

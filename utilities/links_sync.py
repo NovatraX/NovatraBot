@@ -18,6 +18,7 @@ GITHUB_SSH_KEY_PATH = os.getenv("GITHUB_SSH_KEY_PATH")
 
 GIT_COMMIT_NAME = os.getenv("GIT_COMMIT_NAME", "SpreadSheets600")
 GIT_COMMIT_EMAIL = os.getenv("GIT_COMMIT_EMAIL", "sohammaity239@gmail.com")
+
 LINKS_JSON_PATH = "data/links.json"
 
 
@@ -121,13 +122,6 @@ class LinksSyncCog(commands.Cog):
                 if not ok:
                     return False, f"git checkout failed: {msg}"
             branch = desired_branch
-
-        pull_args = (
-            ["pull", "--rebase", "origin", branch] if branch else ["pull", "--rebase"]
-        )
-        ok, msg = self._run_git(pull_args, repo_dir, env)
-        if not ok:
-            return False, f"git pull failed: {msg}"
 
         target_path = os.path.join(repo_dir, GITHUB_FILE_PATH)
         os.makedirs(os.path.dirname(target_path) or ".", exist_ok=True)
